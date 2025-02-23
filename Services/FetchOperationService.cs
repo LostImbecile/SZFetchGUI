@@ -12,6 +12,7 @@ namespace SZExtractorGUI.Services
     public interface IFetchOperationService
     {
         Task<IEnumerable<FetchItemViewModel>> FetchItemsAsync(ContentType contentType);
+        Task<bool> ExtractItemAsync(FetchItemViewModel item); // New method for single item
         Task<bool> ExtractItemsAsync(IEnumerable<FetchItemViewModel> items);
     }
 
@@ -65,51 +66,94 @@ namespace SZExtractorGUI.Services
             }
         }
 
-        public async Task<bool> ExtractItemsAsync(IEnumerable<FetchItemViewModel> items)
+        // New method to handle single item extraction
+        public async Task<bool> ExtractItemAsync(FetchItemViewModel item)
         {
-            if (items == null || !items.Any())
+            if (item == null || string.IsNullOrEmpty(item.CharacterId))
             {
-                return true; // No items to extract
+                _errorHandlingService.HandleError(
+                    $"Failed to extract {item?.CharacterName ?? "unknown item"}", 
+                    "Invalid item or missing Character ID");
+                return false;
             }
-
-            var successCount = 0;
-            var totalCount = items.Count();
 
             try
             {
-                foreach (var item in items)
+                var successCount = 0;
+                var expectedCount = 0;
+
+                // Extract .awb file with container
+                var awbRequest = new ExtractRequest 
+                { 
+                    ContentPath = $"{item.CharacterId}.awb",
+                    ArchiveName = item.Container 
+                };
+                expectedCount++;
+
+                var awbResponse = await _extractorService.ExtractAsync(awbRequest);
+                // Check Success property instead of message
+                if (awbResponse.Success && awbResponse.FilePaths?.Any() == true)
                 {
-                    if (string.IsNullOrEmpty(item.ContentPath))
-                    {
-                        _errorHandlingService.HandleError(
-                            $"Failed to extract {item.CharacterName}", 
-                            "Content path is missing");
-                        continue;
-                    }
+                    successCount++;
+                }
+                else
+                {
+                    _errorHandlingService.HandleError(
+                        $"Failed to extract {item.CharacterName} (.awb)", 
+                        awbResponse.Message ?? "Unknown error");
+                }
 
-                    var request = new ExtractRequest { ContentPath = item.ContentPath };
-                    var response = await _extractorService.ExtractAsync(request);
+                // For non-mods, also extract .uasset file without container
+                if (!item.IsMod)
+                {
+                    expectedCount++;
+                    var uassetRequest = new ExtractRequest 
+                    { 
+                        ContentPath = $"{item.CharacterId}.uasset".Replace("_Cnk_00",""),
+                        ArchiveName = null
+                    };
 
-                    if (response.Success)
+                    var uassetResponse = await _extractorService.ExtractAsync(uassetRequest);
+                    // Check Success property and file paths
+                    if (uassetResponse.Success && uassetResponse.FilePaths?.Any() == true)
                     {
                         successCount++;
                     }
                     else
                     {
                         _errorHandlingService.HandleError(
-                            $"Failed to extract {item.CharacterName}", 
-                            response.Message ?? "Unknown error");
+                            $"Failed to extract {item.CharacterName} (.uasset)", 
+                            uassetResponse.Message ?? "Unknown error");
                     }
                 }
 
-                // Return true only if all items were extracted successfully
-                return successCount == totalCount;
+                // Only return true if we got all expected files
+                return successCount == expectedCount;
             }
             catch (Exception ex)
             {
-                _errorHandlingService.HandleError("Extract operation failed", ex);
+                _errorHandlingService.HandleError($"Extract operation failed for {item.CharacterName}", ex);
                 return false;
             }
+        }
+
+        // Update existing method to use new single item extraction
+        public async Task<bool> ExtractItemsAsync(IEnumerable<FetchItemViewModel> items)
+        {
+            if (items == null || !items.Any())
+            {
+                return true;
+            }
+
+            var allSucceeded = true;
+            foreach (var item in items)
+            {
+                if (!await ExtractItemAsync(item))
+                {
+                    allSucceeded = false;
+                }
+            }
+            return allSucceeded;
         }
     }
 }

@@ -1,4 +1,4 @@
-using SZExtractorGUI.Mvvm;
+﻿using SZExtractorGUI.Mvvm;
 using SZExtractorGUI.Services;
 using System.IO;
 
@@ -13,6 +13,7 @@ namespace SZExtractorGUI.ViewModels
         private string _container;
         private bool _isMod;
         private string _contentPath;
+        private bool _extractionFailed;
 
         public FetchItemViewModel(string filePath, string container, string contentType = null)
         {
@@ -28,9 +29,28 @@ namespace SZExtractorGUI.ViewModels
         }
 
         // For ListView only
-        public string DisplayName => IsMod ? 
-            $"[MOD] {CharacterName} ({CharacterId})" : 
-            $"{CharacterName} ({CharacterId})";
+        public string DisplayName
+        {
+            get
+            {
+                var baseText = IsMod ? 
+                    $"[MOD] {CharacterName} ({CharacterId})" : 
+                    $"{CharacterName} ({CharacterId})";
+                return _extractionFailed ? $"❌ {baseText}" : baseText;
+            }
+        }
+
+        public bool ExtractionFailed
+        {
+            get => _extractionFailed;
+            set
+            {
+                if (SetProperty(ref _extractionFailed, value))
+                {
+                    OnPropertyChanged(nameof(DisplayName));
+                }
+            }
+        }
 
         public bool IsSelected
         {

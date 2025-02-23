@@ -41,6 +41,7 @@ namespace SZExtractorGUI.Models
 
         [JsonPropertyName("outputPath")]
         public string OutputPath { get; set; }
+
         [JsonPropertyName("archiveName")]
         public string? ArchiveName { get; set; }
 
@@ -55,7 +56,13 @@ namespace SZExtractorGUI.Models
         public string Message { get; set; }
 
         [JsonPropertyName("FilePaths")]
-        public List<string> FilePaths { get; set; }
+        public List<string> FilePaths { get; set; } = new();
+
+        // Initialize Success to true if not present in JSON
+        public ExtractResponse()
+        {
+            Success = true;  // Default to true since server indicates success via HTTP status
+        }
     }
 
     public class DumpRequest

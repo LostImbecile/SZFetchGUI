@@ -1,20 +1,43 @@
 using System;
 using System.IO;
 using System.Diagnostics;
+using System.Windows;
 
 namespace SZExtractorGUI.Models
 {
     public class Settings
     {
         private string _toolsDirectory;
-        
-        public string GameDirectory { get; set; }
+        private string _outputPath;
+
+        public string GameDirectory { get; set; } = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\DRAGON BALL Sparking! ZERO\\SparkingZERO\\Content\\Paks";
         public string ServerExecutableName { get; set; } = "SZ_Extractor_Server.exe";
         public string ServerExecutablePath { get; private set; }
         public string EngineVersion { get; set; } = "GAME_UE5_1";
-        public string AesKey { get; set; }
-        public string OutputPath { get; set; }
+        public string AesKey { get; set; } = "0xb2407c45ea7c528738a94c0a25ea8f419de4377628eb30c0ae6a80dd9a9f3ef0";
         public string ServerBaseUrl { get; set; } = "http://localhost:5000/";
+
+        public string OutputPath
+        {
+            get => _outputPath;
+            set
+            {
+                if (string.IsNullOrEmpty(value))
+                {
+                    throw new ArgumentException("Output path cannot be null or empty");
+                }
+
+                // Get full path, handling both absolute and relative paths
+                string fullPath = Path.GetFullPath(
+                    Path.IsPathRooted(value) 
+                        ? value 
+                        : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, value)
+                );
+
+                _outputPath = fullPath;
+                EnsureOutputDirectoryExists();
+            }
+        }
 
         // Keep only essential server settings
         public int ServerStartupTimeoutMs { get; set; } = 10000;
@@ -38,6 +61,9 @@ namespace SZExtractorGUI.Models
             ToolsDirectory = Path.GetFullPath(
                 Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Tools")
             );
+
+            // Set default output path using the new property setter
+            OutputPath = "Output";
         }
 
         private void UpdateServerPath()
@@ -61,6 +87,14 @@ namespace SZExtractorGUI.Models
             }
 
             ServerExecutablePath = fullPath;
+        }
+
+        private void EnsureOutputDirectoryExists()
+        {
+            if (!Directory.Exists(_outputPath))
+            {
+                Directory.CreateDirectory(_outputPath);
+            }
         }
 
         public bool ValidateServerPath()

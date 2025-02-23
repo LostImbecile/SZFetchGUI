@@ -68,8 +68,14 @@ namespace SZExtractorGUI.Services
                 }
 
                 var extractResponse = await response.Content.ReadFromJsonAsync<ExtractResponse>();
-                Debug.WriteLine($"[Extract] Extraction {(extractResponse.Success ? "succeeded" : "failed")}: {extractResponse.Message}");
-                return extractResponse;
+                // Ensure success is true when server returns success status
+                if (extractResponse != null)
+                {
+                    extractResponse.Success = true;
+                }
+                
+                Debug.WriteLine($"[Extract] Deserialized response: Success={extractResponse?.Success}, Message={extractResponse?.Message}, Files={extractResponse?.FilePaths?.Count ?? 0}");
+                return extractResponse ?? new ExtractResponse { Success = true, Message = "No response content" };
             }
             catch (Exception ex)
             {

@@ -32,6 +32,7 @@ namespace SZExtractorGUI.ViewModels
         private ICollectionView _remoteItemsView;
         private bool _disposed;
         private bool _initialized;
+        private bool _isRefreshing;
 
         private readonly IContentTypeService _contentTypeService;
         private readonly IFetchOperationService _fetchOperationService;
@@ -40,7 +41,17 @@ namespace SZExtractorGUI.ViewModels
         private readonly ISzExtractorService _szExtractorService;
         private readonly IInitializationService _initializationService;
 
-        public ICommand FetchFilesCommand { get; private set; }
+        // Add private field to store the command
+        private RelayCommand _fetchFilesCommand;
+        private RelayCommand _refreshCommand;
+
+        // Update the property to use the field
+        public ICommand FetchFilesCommand 
+        { 
+            get => _fetchFilesCommand;
+            private set => SetProperty(ref _fetchFilesCommand, (RelayCommand)value);
+        }
+
         public ICommand RefreshCommand { get; private set; }
 
         private LanguageOption _selectedLanguage = LanguageOption.All;
@@ -55,6 +66,9 @@ namespace SZExtractorGUI.ViewModels
                 }
             }
         }
+
+        // Add event for item extraction completion
+        public event EventHandler<(FetchItemViewModel Item, bool Success)> ItemExtractionCompleted;
 
         public FetchPageViewModel(
             IContentTypeService contentTypeService,
@@ -79,81 +93,89 @@ namespace SZExtractorGUI.ViewModels
                 IsOperationInProgress = isActive;
             };
 
-            // Listen for server configuration completion
+            // Listen for server configuration completion but don't trigger refresh
             _initializationService.ConfigurationCompleted += (s, success) =>
             {
-                if (success)
+                if (!success)
                 {
-                    _ = ExecuteRefreshAsync();
-                }
-                else
-                {
-                    // Ensure progress ring is hidden if configuration fails
+                    // Only update progress ring if configuration fails
                     IsOperationInProgress = false;
                 }
             };
 
             InitializeCommands();
+
+            // Start initialization process
+            _ = InitializeAsync();
         }
 
         private void InitializeCommands()
         {
-            FetchFilesCommand = new RelayCommand(
-                async () => await ExecuteFetchFilesAsync(),
-                () => true  // Always enabled
+            _fetchFilesCommand = new RelayCommand(
+                async () => await ExtractSelectedItemsAsync(),
+                () => SelectedItems?.Any() == true
             );
 
             RefreshCommand = new RelayCommand(
                 async () => await ExecuteRefreshAsync(),
-                () => true  // Always enabled
+                () => !_isRefreshing
             );
         }
 
-        private async Task ExecuteFetchFilesAsync()
+        private async Task InitializeAsync()
         {
-            if (SelectedContentType == null) return;
-
             try
             {
                 await _backgroundOps.ExecuteOperationAsync(async () =>
                 {
-                    var items = await _fetchOperationService.FetchItemsAsync(SelectedContentType);
-                    if (items != null)
+                    await _initializationService.InitializeAsync();
+                    // Only fetch initial data after successful initialization
+                    if (_initializationService.IsInitialized)
                     {
-                        await UpdateItemsCollectionAsync(items);
+                        await FetchItemsAsync();
                     }
                 });
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[Fetch] Error fetching files: {ex.Message}");
+                Debug.WriteLine($"[Initialize] Error: {ex.Message}");
+                IsOperationInProgress = false;
             }
         }
 
         private async Task ExecuteRefreshAsync()
         {
-            if (SelectedContentType == null) return;
+            if (SelectedContentType == null || _isRefreshing) return;
 
             try
             {
+                _isRefreshing = true;
                 await _backgroundOps.ExecuteOperationAsync(async () =>
                 {
-                    // Then fetch
-                    var items = await _fetchOperationService.FetchItemsAsync(SelectedContentType);
-                    if (items != null)
-                    {
-                        await Application.Current.Dispatcher.InvokeAsync(() =>
-                        {
-                            UpdateItemsCollectionAsync(items).Wait();
-                            // Force UI refresh
-                            OnPropertyChanged(nameof(RemoteItemsView));
-                        });
-                    }
+                    await FetchItemsAsync();
                 });
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[Refresh] Error: {ex.Message}");
+            }
+            finally
+            {
+                _isRefreshing = false;
+            }
+        }
+
+        private async Task FetchItemsAsync()
+        {
+            var items = await _fetchOperationService.FetchItemsAsync(SelectedContentType);
+            if (items != null)
+            {
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    UpdateItemsCollectionAsync(items).Wait();
+                    // Force UI refresh
+                    OnPropertyChanged(nameof(RemoteItemsView));
+                });
             }
         }
 
@@ -161,21 +183,27 @@ namespace SZExtractorGUI.ViewModels
         {
             if (items == null) return;
 
-            // Already on UI thread due to Dispatcher.InvokeAsync
-            var selectedItemsCache = new HashSet<string>(SelectedItems.Select(x => x.CharacterId));
+            // Cache selected items state - do NOT clear SelectedItems
+            var selectedItemIds = new HashSet<string>(SelectedItems.Select(x => x.CharacterId));
 
+            // Clear only remote items
             RemoteItems.Clear();
+
+            // Add new items and restore selection state for matching items
             foreach (var item in items)
             {
                 RemoteItems.Add(item);
-                if (selectedItemsCache.Contains(item.CharacterId))
+
+                // Preserve selection state if it was previously selected
+                if (selectedItemIds.Contains(item.CharacterId))
                 {
                     item.IsSelected = true;
                 }
             }
 
-            // Force collection view refresh
+            // Force UI updates
             _remoteItemsView?.Refresh();
+            _fetchFilesCommand?.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(RemoteItems));
         }
 
@@ -279,10 +307,8 @@ namespace SZExtractorGUI.ViewModels
             {
                 if (SetProperty(ref _selectedRemoteItem, value))
                 {
-                    if (value != null && !SelectedItems.Contains(value))
-                    {
-                        SelectedItems.Add(value);
-                    }
+                    // Don't modify item selection state here, let the grid handle it
+                    // This is just for tracking the currently focused item
                 }
             }
         }
@@ -334,26 +360,22 @@ namespace SZExtractorGUI.ViewModels
         {
             if (item == null) return;
 
-            if (isSelected)
+            // Simple synchronization - this is triggered by checkbox/selection changes
+            if (isSelected && !SelectedItems.Contains(item))
             {
-                if (!SelectedItems.Contains(item))
+                SelectedItems.Add(item);
+            }
+            else if (!isSelected && SelectedItems.Contains(item))
+            {
+                SelectedItems.Remove(item);
+                // Also clear SelectedRemoteItem if this was the selected item
+                if (SelectedRemoteItem == item)
                 {
-                    SelectedItems.Add(item);
-                    _remoteItemsView?.Refresh();
+                    SelectedRemoteItem = null;
                 }
             }
-            else
-            {
-                if (SelectedItems.Contains(item))
-                {
-                    SelectedItems.Remove(item);
-                    _remoteItemsView?.Refresh();
-                    if (SelectedRemoteItem == item)
-                    {
-                        SelectedRemoteItem = null;
-                    }
-                }
-            }
+
+            _fetchFilesCommand?.RaiseCanExecuteChanged();
         }
 
         private void InitializeCollections()
@@ -381,15 +403,32 @@ namespace SZExtractorGUI.ViewModels
 
         private async Task ExtractSelectedItemsAsync()
         {
-            var selectedItems = RemoteItems.Where(x => x.IsSelected).ToList();
+            var selectedItems = SelectedItems.ToList();
             if (!selectedItems.Any()) return;
 
             try
             {
-                await _backgroundOps.ExecuteOperationAsync(async () =>
+                foreach (var item in selectedItems)
                 {
-                    await _fetchOperationService.ExtractItemsAsync(selectedItems);
-                });
+                    await _backgroundOps.ExecuteOperationAsync(async () =>
+                    {
+                        var success = await _fetchOperationService.ExtractItemAsync(item);
+                        
+                        await Application.Current.Dispatcher.InvokeAsync(() =>
+                        {
+                            // Update extraction status
+                            item.ExtractionFailed = !success;
+                            
+                            if (success)
+                            {
+                                // Only unselect if extraction was successful
+                                item.IsSelected = false;
+                            }
+                            
+                            ItemExtractionCompleted?.Invoke(this, (item, success));
+                        });
+                    });
+                }
             }
             catch (Exception ex)
             {
