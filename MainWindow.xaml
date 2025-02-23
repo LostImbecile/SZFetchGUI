@@ -1,0 +1,25 @@
+﻿<controls:MetroWindow
+    x:Class="SZExtractorGUI.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="http://metro.mahapps.com/winfx/xaml/controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="clr-namespace:SZExtractorGUI"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Title="SZ File Fetcher"
+    Width="1000"
+    Height="450"
+    BorderThickness="0,0,0,3"
+    Icon="/icon.png"
+    NonActiveBorderBrush="{x:Null}"
+    NonActiveWindowTitleBrush="{x:Null}"
+    OverrideDefaultWindowCommandsBrush="White"
+    TitleForeground="White"
+    WindowTitleBrush="Black"
+    WindowTransitionsEnabled="False"
+    mc:Ignorable="d">
+    <Frame
+        x:Name="MainFrame"
+        Margin="5"
+        NavigationUIVisibility="Hidden" />
+</controls:MetroWindow>

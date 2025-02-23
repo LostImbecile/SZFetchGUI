@@ -1,0 +1,24 @@
+﻿<Application
+    x:Class="SZExtractorGUI.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="clr-namespace:SZExtractorGUI.Converters"
+    xmlns:local="clr-namespace:SZExtractorGUI">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/Dark.Red.xaml" />
+                <ResourceDictionary Source="/Resources/ButtonStyles.xaml" />
+                <ResourceDictionary Source="/Resources/DataGridStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!--  Global Converters  -->
+            <converters:BoolToColorConverter x:Key="BoolToColorConverter" />
+            <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
+            <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
+            <converters:BoolToTooltipConverter x:Key="BoolToTooltipConverter" />
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
