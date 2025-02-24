@@ -32,20 +32,22 @@
         <!--  Main Content  -->
         <Grid Grid.Column="0" Margin="5">
             <Grid.RowDefinitions>
+                <!--  Row 0: Filters  -->
                 <RowDefinition Height="Auto" />
-                <!--  Row 0: Content Type Dropdown  -->
-                <RowDefinition Height="Auto" />
-                <!--  Row 1: Filters  -->
+                <!--  Row 1: Language  -->
                 <RowDefinition Height="Auto" />
                 <!--  Row 2: Grid Header  -->
-                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
                 <!--  Row 3: Grid Content  -->
+                <RowDefinition Height="*" />
+                <!--  Row 4: Note  -->
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <!--  Content Type Dropdown - Row 0  -->
 
 
-            <!--  Search and Language Controls - Row 1  -->
+            <!--  Search & Filters - Row 0  -->
             <StackPanel Grid.Row="0" Orientation="Horizontal">
                 <ComboBox
                     Grid.Row="0"
@@ -65,7 +67,6 @@
                     mah:TextBoxHelper.Watermark="Search items..."
                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
 
-                <!--  Filters - Row 2  -->
                 <StackPanel Margin="0,0,10,10" Orientation="Horizontal">
                     <CheckBox
                         Margin="0,0,10,0"
@@ -80,12 +81,13 @@
 
             </StackPanel>
 
+            <!--  Language Controls - Row 1  -->
             <StackPanel
                 Grid.Row="1"
                 Margin="0,0,0,10"
                 Orientation="Horizontal">
                 <TextBlock
-                    Margin="0,0,5,0"
+                    Margin="0,0,5,2"
                     VerticalAlignment="Center"
                     Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"
                     Text="Language:" />
@@ -106,7 +108,7 @@
                     IsChecked="{Binding SelectedLanguage, Converter={StaticResource EnumBooleanConverter}, ConverterParameter=English}" />
             </StackPanel>
 
-            <!--  Grid Header - Row 3  -->
+            <!--  Grid Header - Row 2  -->
             <Grid Grid.Row="2">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="80" />
@@ -122,17 +124,17 @@
                     Grid.Column="1"
                     Width="20"
                     Height="20"
-                    Margin="10,0,0,0"
+                    Margin="10,0,0,2"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Top"
                     Foreground="{DynamicResource MahApps.Brushes.Accent}"
                     Visibility="{Binding IsOperationInProgress, Converter={StaticResource BooleanToVisibilityConverter}}" />
             </Grid>
 
-            <!--  Grid Content - Row 4  -->
+            <!--  Grid Content - Row 3  -->
             <local:CustomDataGrid
                 x:Name="RemoteItemsGrid"
-                Grid.Row="4"
+                Grid.Row="3"
                 AutoGenerateColumns="False"
                 CanUserAddRows="False"
                 CanUserDeleteRows="False"
@@ -185,6 +187,15 @@
                         IsReadOnly="True" />
                 </DataGrid.Columns>
             </local:CustomDataGrid>
+
+            <TextBlock
+                Grid.Row="4"
+                Margin="5,5,0,0"
+                VerticalAlignment="Center"
+                FontSize="10"
+                Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"
+                Text="Note: You may use keyboard shortcuts to select/delete multiple items in either list." />
+
         </Grid>
 
         <!--  Right Panel with ListView  -->

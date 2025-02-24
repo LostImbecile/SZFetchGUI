@@ -29,7 +29,7 @@ namespace SZExtractorGUI.Views
 
         private void SelectedItemsListView_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.Delete)
+            if (e.Key == Key.Delete || e.Key == Key.Back)
             {
                 var listView = (ListView)sender;
                 var selectedItems = listView.SelectedItems.Cast<FetchItemViewModel>().ToList();

@@ -21,6 +21,8 @@ namespace SZExtractorGUI.Views  // Consider a more generic namespace if you inte
         private bool _isSingleClick = true;
         private object _clickedItem;
         private bool _isMouseOverButtonOrCheckbox = false;
+        private object _lastSelectedItem;
+        private int _lastSelectedIndex = -1;
 
         /// <summary>
         /// Occurs when an item is single-clicked.
@@ -133,6 +135,8 @@ namespace SZExtractorGUI.Views  // Consider a more generic namespace if you inte
             };
             _doubleClickTimer.Tick += OnDoubleClickTimerTick;
             this.Loaded += CustomDataGrid_Loaded;
+            this.Focusable = true;
+            this.IsTabStop = true;
         }
 
         /// <summary>
@@ -153,6 +157,36 @@ namespace SZExtractorGUI.Views  // Consider a more generic namespace if you inte
         protected override void OnPreviewKeyDown(KeyEventArgs e)
         {
             _doubleClickTimer.Stop();
+            
+            // Handle Ctrl+A for select all
+            if (e.Key == Key.A && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            {
+                SelectAllItems(true);
+                e.Handled = true;
+                return;
+            }
+            
+            // Handle Del and Backspace for deselection
+            if (e.Key == Key.Delete || e.Key == Key.Back)
+            {
+                if (SelectedItemsList != null && SelectedItemsList.Count > 0)
+                {
+                    // Create a new array to avoid collection modification issues
+                    var itemsToDeselect = SelectedItemsList.Cast<object>().ToArray();
+                    foreach (var item in itemsToDeselect)
+                    {
+                        var isSelectedProperty = TypeDescriptor.GetProperties(item).Find(IsSelectedPropertyName, false);
+                        if (isSelectedProperty != null)
+                        {
+                            isSelectedProperty.SetValue(item, false);
+                            UpdateSelectedItemsList(item, false);
+                        }
+                    }
+                    e.Handled = true;
+                    return;
+                }
+            }
+            
             if (e.Key == Key.Enter && SelectedItem != null)
             {
                 OnItemDoubleClick(SelectedItem);
@@ -191,29 +225,45 @@ namespace SZExtractorGUI.Views  // Consider a more generic namespace if you inte
                     return;
                 }
 
-                if (DisableDoubleClick)
+                int currentIndex = Items.IndexOf(clickedItem);
+
+                if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift && _lastSelectedIndex != -1)
                 {
-                    OnItemSingleClick(clickedItem);
-                }
-                else if (_isMouseOverButtonOrCheckbox)
-                {
-                    _isSingleClick = false;
-                    _doubleClickTimer.Stop();
-                }
-                else if (!_doubleClickTimer.IsEnabled)
-                {
-                    _doubleClickTimer.Start();
-                    _isSingleClick = true;
-                }
-                else if (_doubleClickTimer.IsEnabled)
-                {
-                    _isSingleClick = false;
-                    _doubleClickTimer.Stop();
-                    OnMouseDoubleClick(e);
+                    // Shift-click selection
+                    SelectRange(_lastSelectedIndex, currentIndex);
+                    SelectedItem = clickedItem;
                     e.Handled = true;
-                    return;
                 }
-                SelectedItem = clickedItem;
+                else
+                {
+                    // Normal selection handling
+                    if (DisableDoubleClick)
+                    {
+                        OnItemSingleClick(clickedItem);
+                    }
+                    else if (_isMouseOverButtonOrCheckbox)
+                    {
+                        _isSingleClick = false;
+                        _doubleClickTimer.Stop();
+                    }
+                    else if (!_doubleClickTimer.IsEnabled)
+                    {
+                        _doubleClickTimer.Start();
+                        _isSingleClick = true;
+                    }
+                    else if (_doubleClickTimer.IsEnabled)
+                    {
+                        _isSingleClick = false;
+                        _doubleClickTimer.Stop();
+                        OnMouseDoubleClick(e);
+                        e.Handled = true;
+                        return;
+                    }
+
+                    _lastSelectedIndex = currentIndex;
+                    _lastSelectedItem = clickedItem;
+                    SelectedItem = clickedItem;
+                }
             }
             else
             {
@@ -451,9 +501,64 @@ namespace SZExtractorGUI.Views  // Consider a more generic namespace if you inte
             return cell;
         }
 
-        private bool IsButtonOrCheckbox(DependencyObject element)
+        private void SelectAllItems(bool select)
         {
-            return element is Button || element is CheckBox || FindParent<ButtonBase>(element) != null;
+            foreach (var item in Items)
+            {
+                var isSelectedProperty = TypeDescriptor.GetProperties(item).Find(IsSelectedPropertyName, false);
+                if (isSelectedProperty != null)
+                {
+                    isSelectedProperty.SetValue(item, select);
+                    UpdateSelectedItemsList(item, select);
+                }
+            }
+        }
+
+        private void SelectRange(int startIndex, int endIndex)
+        {
+            int min = Math.Min(startIndex, endIndex);
+            int max = Math.Max(startIndex, endIndex);
+
+            for (int i = 0; i < Items.Count; i++)
+            {
+                var item = Items[i];
+                var isSelectedProperty = TypeDescriptor.GetProperties(item).Find(IsSelectedPropertyName, false);
+                if (isSelectedProperty != null)
+                {
+                    bool shouldBeSelected = i >= min && i <= max;
+                    isSelectedProperty.SetValue(item, shouldBeSelected);
+                    UpdateSelectedItemsList(item, shouldBeSelected);
+                }
+            }
+        }
+
+        protected override void OnGotFocus(RoutedEventArgs e)
+        {
+            base.OnGotFocus(e);
+            this.Focus(); // Ensure the grid itself can receive key events
+        }
+
+        protected override void OnPreviewMouseDown(MouseButtonEventArgs e)
+        {
+            base.OnPreviewMouseDown(e);
+            
+            // Always try to focus the grid when clicked anywhere
+            if (!IsFocused)
+            {
+                Focus();
+                e.Handled = true;
+            }
+        }
+
+        protected override void OnMouseDown(MouseButtonEventArgs e)
+        {
+            // Focus the grid when clicking on empty areas
+            if (e.OriginalSource is ScrollViewer || e.OriginalSource is Grid)
+            {
+                Focus();
+            }
+            
+            base.OnMouseDown(e);
         }
     }
 }
