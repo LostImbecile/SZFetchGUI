@@ -546,7 +546,7 @@ namespace SZExtractorGUI.Views  // Consider a more generic namespace if you inte
             if (!IsFocused)
             {
                 Focus();
-                e.Handled = true;
+                // Removed e.Handled = true to allow normal selection behavior
             }
         }
 

@@ -40,7 +40,8 @@ namespace SZExtractorGUI.Services
         {
             if (!File.Exists(ConfigFile))
             {
-                ShowFatalError($"Configuration file {ConfigFile} not found");
+                Debug.WriteLine("[Config] Configuration file not found, creating with default values");
+                CreateDefaultConfiguration();
             }
 
             try
@@ -68,6 +69,7 @@ namespace SZExtractorGUI.Services
 
                     try 
                     {
+                        // Pass the raw value to Settings - it will handle path conversion internally
                         switch (key.ToLower())
                         {
                             case "gamedirectory":
@@ -108,6 +110,38 @@ namespace SZExtractorGUI.Services
             catch (Exception ex)
             {
                 ShowFatalError($"Failed to read configuration file:\n{ex.Message}");
+            }
+        }
+
+        private void CreateDefaultConfiguration()
+        {
+            try
+            {
+                // Get app base directory once
+                var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                
+                // Convert default absolute paths to relative where appropriate
+                var gameDir = Settings.GameDirectory; // Keep as-is since it's a system path
+                var toolsDir = Path.GetRelativePath(baseDir, Settings.ToolsDirectory);
+                var outputDir = "Output"; // Use simple relative path
+
+                var defaultConfig = new[]
+                {
+                    "; SZ Extractor Configuration File",
+                    $"GameDirectory=\"{gameDir}\"",
+                    $"Tools_Directory=\"{toolsDir}\"", 
+                    $"EngineVersion=\"{Settings.EngineVersion}\"",
+                    $"AesKey=\"{Settings.AesKey}\"",
+                    $"OutputPath=\"{outputDir}\""
+                };
+
+                Debug.WriteLine("[Config] Writing default configuration file");
+                File.WriteAllLines(ConfigFile, defaultConfig);
+                Debug.WriteLine("[Config] Default configuration file created successfully");
+            }
+            catch (Exception ex)
+            {
+                ShowFatalError($"Failed to create default configuration file:\n{ex.Message}");
             }
         }
 
