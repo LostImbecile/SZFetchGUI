@@ -4,6 +4,7 @@ namespace SZExtractorGUI.Services.FileInfo
     {
         string GetCharacterIdFromPath(string path);
         string GetCharacterNameFromPath(string filePath, string displayLanguage = "en");
+        string getFileType(string characterId, string contentType);
         bool IsMod(string path);
     }
 }

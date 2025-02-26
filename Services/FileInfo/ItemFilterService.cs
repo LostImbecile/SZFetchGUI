@@ -9,13 +9,9 @@ namespace SZExtractorGUI.Services.FileInfo
 {
     public class ItemFilterService : IItemFilterService
     {
-        private readonly ICharacterNameManager _characterNameManager;
-        private readonly Settings _settings;
 
-        public ItemFilterService(ICharacterNameManager characterNameManager, Settings settings)
+        public ItemFilterService()
         {
-            _characterNameManager = characterNameManager;
-            _settings = settings;
         }
 
         public bool FilterItem(FetchItemViewModel item, FilterParameters parameters)
@@ -44,7 +40,7 @@ namespace SZExtractorGUI.Services.FileInfo
             return true;
         }
 
-        private bool FilterByMods(FetchItemViewModel item, bool showModsOnly, bool showGameFilesOnly)
+        private static bool FilterByMods(FetchItemViewModel item, bool showModsOnly, bool showGameFilesOnly)
         {
             if (showModsOnly && !item.IsMod)
                 return false;
@@ -53,7 +49,7 @@ namespace SZExtractorGUI.Services.FileInfo
             return true;
         }
 
-        private bool FilterBySearchText(FetchItemViewModel item, string searchText)
+        private static bool FilterBySearchText(FetchItemViewModel item, string searchText)
         {
             if (string.IsNullOrWhiteSpace(searchText))
                 return true;
@@ -63,18 +59,17 @@ namespace SZExtractorGUI.Services.FileInfo
                    item.Container.Contains(searchText, StringComparison.OrdinalIgnoreCase);
         }
 
-        private bool FilterByLanguage(FetchItemViewModel item, LanguageOption languageOption)
+        private static bool FilterByLanguage(FetchItemViewModel item, LanguageOption languageOption)
         {
             // Use LanguageUtil to check if the content matches the selected language option
             return LanguageUtil.MatchesLanguage(item.CharacterId, languageOption);
         }
 
-        private bool FilterByTextLanguage(FetchItemViewModel item, string currentLanguage)
+        private static bool FilterByTextLanguage(FetchItemViewModel item, string currentLanguage)
         {
             if (string.IsNullOrEmpty(item.CharacterName) || string.IsNullOrEmpty(currentLanguage))
                 return true;
 
-            Debug.WriteLine($"{currentLanguage}");
             // Check if the path contains the language code pattern "langcode -"
             return item.CharacterName.Contains($"{currentLanguage} -", StringComparison.OrdinalIgnoreCase);
         }

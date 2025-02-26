@@ -106,6 +106,7 @@ namespace SZExtractorGUI.Services.State
         public void Dispose()
         {
             _configLock?.Dispose();
+            GC.SuppressFinalize(this);
         }
     }
 }

@@ -11,14 +11,9 @@ using System.Windows.Media.TextFormatting;
 
 namespace SZExtractorGUI.Services.FileInfo
 {
-    public class PackageInfo : IPackageInfo
+    public class PackageInfo(ICharacterNameManager characterNameManager) : IPackageInfo
     {
-        private readonly ICharacterNameManager _characterNameManager;
-
-        public PackageInfo(ICharacterNameManager characterNameManager)
-        {
-            _characterNameManager = characterNameManager;
-        }
+        private readonly ICharacterNameManager _characterNameManager = characterNameManager;
 
         public string GetCharacterIdFromPath(string path)
         {
@@ -27,7 +22,6 @@ namespace SZExtractorGUI.Services.FileInfo
                 ?? string.Empty;
         }
 
-        // ...existing code...
         public string GetCharacterNameFromPath(string filePath, string displayLanguage = "en")
         {
             String id = GetCharacterIdFromPath(filePath);
@@ -38,11 +32,9 @@ namespace SZExtractorGUI.Services.FileInfo
             if (!filePath.Contains("Localization", StringComparison.OrdinalIgnoreCase))
             {
                 bool isCnk = false;
-                bool isSoundEffect = false;
+
                 if (id.Contains("_Cnk", StringComparison.OrdinalIgnoreCase))
                     isCnk = true;
-                if (id.StartsWith("se_", StringComparison.OrdinalIgnoreCase) || id.StartsWith("BTLSE", StringComparison.OrdinalIgnoreCase))
-                    isSoundEffect = true;
 
                 if (id.Contains("ADVIF"))
                     name = "Story & Scenes";
@@ -60,6 +52,12 @@ namespace SZExtractorGUI.Services.FileInfo
                 {
                     String strippedId = id.Replace("_JP", "").Replace("_US", "").Replace("_EN", "")
                         .Replace("BTLCV_", "").Replace("BTLSE_", "");
+                    bool isAlt = false;
+                    if (strippedId.EndsWith("_A"))
+                    {
+                        strippedId = strippedId.Substring(0, strippedId.Length - 2);
+                        isAlt = true;
+                    }
                     name = _characterNameManager.GetCharacterName(strippedId, displayLanguage);
                     if (string.IsNullOrEmpty(name))
                     {
@@ -68,21 +66,17 @@ namespace SZExtractorGUI.Services.FileInfo
                     }
                     else
                         name = name.Replace("Super Saiyan God", "SSG").Replace("Super Saiyan", "SSJ").Replace("SSG SSJ", "SSB");
-                    
+
+                    if (isAlt)
+                        name += " (Alt)";
+
                 }
                 else
-                    name = id;
+                    name = id.Replace("_JP", "").Replace("_US", "").Replace("_EN", "")
+                        .Replace("BTLCV_", "").Replace("BTLSE_", "");
 
                 if (isCnk)
                     name += " (Secondary)";
-
-                if (isSoundEffect)
-                    name += " (Sound Effects)";
-
-                if (LanguageUtil.IsJapaneseContent(id))
-                    name = "(JP) " + name;
-                else if (LanguageUtil.IsEnglishContent(id))
-                    name = "(EN) " + name;
             }
             else if (!String.IsNullOrEmpty(filePath))
             {
@@ -102,6 +96,17 @@ namespace SZExtractorGUI.Services.FileInfo
                 name = language + " - " + name;
             }
             return name;
+        }
+
+        public string getFileType(string id, string contentType)
+        {
+            if (id.StartsWith("se_", StringComparison.OrdinalIgnoreCase) || id.StartsWith("BTLSE", StringComparison.OrdinalIgnoreCase))
+                return "Sound Effect";
+            if (LanguageUtil.IsJapaneseContent(id))
+                return "Japanese Voice";
+            if (LanguageUtil.IsEnglishContent(id))
+                return "English Voice";
+            return contentType;
         }
 
         public bool IsMod(string path)

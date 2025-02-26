@@ -11,31 +11,26 @@ using SZExtractorGUI.Services.State;
 using SZExtractorGUI.ViewModels;
 using SZExtractorGUI.Utilities;
 using SZExtractorGUI.Viewmodels;
+using SZExtractorGUI.Services.Fetch;
 
-namespace SZExtractorGUI.Services.Fetch
+namespace SZExtractorGUI.Services.FileFetch
 {
     public interface IFetchOperationService
     {
-        Task<IEnumerable<FetchItemViewModel>> FetchItemsAsync(ContentType contentType, IPackageInfo packageInfo, String displayLanguage = "en");
-        Task<bool> ExtractItemAsync(FetchItemViewModel item); 
+        Task<IEnumerable<FetchItemViewModel>> FetchItemsAsync(ContentType contentType, IPackageInfo packageInfo, string displayLanguage = "en");
+        Task<bool> ExtractItemAsync(FetchItemViewModel item);
         Task<bool> ExtractItemsAsync(IEnumerable<FetchItemViewModel> items);
-        Task<IEnumerable<string>> GetLocresFiles(); 
+        Task<IEnumerable<string>> GetLocresFiles();
     }
 
-    public class FetchOperationService : IFetchOperationService
+    public class FetchOperationService(
+        ISzExtractorService extractorService,
+        IErrorHandlingService errorHandlingService) : IFetchOperationService
     {
-        private readonly ISzExtractorService _extractorService;
-        private readonly IErrorHandlingService _errorHandlingService;
+        private readonly ISzExtractorService _extractorService = extractorService;
+        private readonly IErrorHandlingService _errorHandlingService = errorHandlingService;
 
-        public FetchOperationService(
-            ISzExtractorService extractorService,
-            IErrorHandlingService errorHandlingService)
-        {
-            _extractorService = extractorService;
-            _errorHandlingService = errorHandlingService;
-        }
-
-        public async Task<IEnumerable<FetchItemViewModel>> FetchItemsAsync(ContentType contentType, IPackageInfo packageInfo,String displayLanguage = "en")
+        public async Task<IEnumerable<FetchItemViewModel>> FetchItemsAsync(ContentType contentType, IPackageInfo packageInfo, string displayLanguage = "en")
         {
             try
             {
@@ -68,7 +63,7 @@ namespace SZExtractorGUI.Services.Fetch
             {
                 Debug.WriteLine($"[Fetch] Error: {ex.Message}");
                 _errorHandlingService.HandleError("Failed to fetch items", ex);
-                return Enumerable.Empty<FetchItemViewModel>();
+                return [];
             }
         }
 
@@ -78,7 +73,7 @@ namespace SZExtractorGUI.Services.Fetch
             if (item == null || string.IsNullOrEmpty(item.CharacterId))
             {
                 _errorHandlingService.HandleError(
-                    $"Failed to extract {item?.CharacterName ?? "unknown item"}", 
+                    $"Failed to extract {item?.CharacterName ?? "unknown item"}",
                     "Invalid item or missing Character ID");
                 return false;
             }
@@ -89,23 +84,23 @@ namespace SZExtractorGUI.Services.Fetch
                 var expectedCount = 0;
 
                 // Extract .awb file with container
-                var awbRequest = new ExtractRequest 
-                { 
+                var awbRequest = new ExtractRequest
+                {
                     ContentPath = $"{item.CharacterId}.awb",
-                    ArchiveName = item.Container 
+                    ArchiveName = item.Container
                 };
                 expectedCount++;
 
                 var awbResponse = await _extractorService.ExtractAsync(awbRequest);
                 // Check Success property instead of message
-                if (awbResponse.Success && awbResponse.FilePaths?.Any() == true)
+                if (awbResponse.Success && awbResponse.FilePaths.Count != 0)
                 {
                     successCount++;
                 }
                 else
                 {
                     _errorHandlingService.HandleError(
-                        $"Failed to extract {item.CharacterName} (.awb)", 
+                        $"Failed to extract {item.CharacterName} (.awb)",
                         awbResponse.Message ?? "Unknown error");
                 }
 
@@ -113,22 +108,22 @@ namespace SZExtractorGUI.Services.Fetch
                 if (!item.IsMod)
                 {
                     expectedCount++;
-                    var uassetRequest = new ExtractRequest 
-                    { 
-                        ContentPath = $"{item.CharacterId}.uasset".Replace("_Cnk_00",""),
+                    var uassetRequest = new ExtractRequest
+                    {
+                        ContentPath = $"{item.CharacterId}.uasset".Replace("_Cnk_00", ""),
                         ArchiveName = null
                     };
 
                     var uassetResponse = await _extractorService.ExtractAsync(uassetRequest);
                     // Check Success property and file paths
-                    if (uassetResponse.Success && uassetResponse.FilePaths?.Any() == true)
+                    if (uassetResponse.Success && uassetResponse.FilePaths.Count != 0)
                     {
                         successCount++;
                     }
                     else
                     {
                         _errorHandlingService.HandleError(
-                            $"Failed to extract {item.CharacterName} (.uasset)", 
+                            $"Failed to extract {item.CharacterName} (.uasset)",
                             uassetResponse.Message ?? "Unknown error");
                     }
                 }
@@ -179,44 +174,32 @@ namespace SZExtractorGUI.Services.Fetch
                 var extractedFiles = new List<string>();
                 foreach (var (container, files) in response.Files)
                 {
-                    if (container.Contains("_P")) continue; // Skip patch containers
-                    
+                    if (container.Contains("_P")) continue; // Skip mod containers
+                    Debug.WriteLine($"[Fetch] Processing container {container} with {files.Count} files");
                     foreach (var file in files)
                     {
                         // Extract and rename maintaining original language code case
                         var languageCode = ExtractLanguageCode(file);
                         if (languageCode != null)
                         {
+                            var targetDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Languages", languageCode);
+
+                            // Create language directory if it doesn't exist
+                            Directory.CreateDirectory(targetDir);
+
                             var extractRequest = new ExtractRequest
                             {
                                 ContentPath = file,
-                                ArchiveName = container
+                                ArchiveName = container,
+                                OutputPath = targetDir
                             };
 
                             var extractResponse = await _extractorService.ExtractAsync(extractRequest);
-                            if (extractResponse.Success && extractResponse.FilePaths?.Any() == true)
+                            if (extractResponse.Success && extractResponse.FilePaths.Count != 0)
                             {
                                 foreach (var extractedPath in extractResponse.FilePaths)
                                 {
-                                    Debug.WriteLine($"[Fetch] Extracted locres file: {extractedPath}");
-                                    var directory = Path.GetDirectoryName(extractedPath);
-                                    var newPath = Path.Combine(directory!, $"{languageCode} - Data.locres");
-                                    
-                                    try
-                                    {
-                                        if (File.Exists(newPath))
-                                        {
-                                            File.Delete(newPath);
-                                        }
-                                        File.Move(extractedPath, newPath);
-                                        extractedFiles.Add(newPath);
-                                        Debug.WriteLine($"[Fetch] Renamed to: {newPath}");
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        Debug.WriteLine($"[Fetch] Failed to rename file: {ex.Message}");
-                                        extractedFiles.Add(extractedPath); // Use original path as fallback
-                                    }
+                                    extractedFiles.Add(extractedPath);
                                 }
                             }
                         }
@@ -229,11 +212,12 @@ namespace SZExtractorGUI.Services.Fetch
             {
                 Debug.WriteLine($"[Fetch] Error: {ex.Message}");
                 _errorHandlingService.HandleError("Failed to fetch locres files", ex);
-                return Enumerable.Empty<string>();
+                return [];
             }
         }
 
-        private string ExtractLanguageCode(string path)
+        // ...existing code...
+        private static string ExtractLanguageCode(string path)
         {
             // Extract language code based on path structure
             var parts = path.Split('/');

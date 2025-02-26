@@ -25,7 +25,7 @@ namespace SZExtractorGUI.Services.Configuration
             }
         }
 
-        private void ShowFatalError(string message)
+        private static void ShowFatalError(string message)
         {
             MessageBox.Show(
                 message,
@@ -49,7 +49,7 @@ namespace SZExtractorGUI.Services.Configuration
                 Debug.WriteLine("[Config] Loading configuration from file");
                 foreach (var line in File.ReadAllLines(ConfigFile))
                 {
-                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith(";") || line.StartsWith("#") || line.StartsWith("["))
+                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith(';') || line.StartsWith('#') || line.StartsWith('['))
                     {
                         Debug.WriteLine($"[Config] Skipping line: {line}");
                         continue;
@@ -182,6 +182,30 @@ namespace SZExtractorGUI.Services.Configuration
             catch (Exception ex)
             {
                 ShowFatalError($"Failed to create or access output directory:\n{Settings.OutputPath}\nError: {ex.Message}");
+            }
+        }
+
+        public void SaveConfiguration()
+        {
+            try
+            {
+                var configLines = new[]
+                {
+                    $"GameDirectory=\"{Settings.GameDirectory}\"",
+                    $"Tools_Directory=\"{Settings.ToolsDirectory}\"",
+                    $"EngineVersion=\"{Settings.EngineVersion}\"",
+                    $"AesKey=\"{Settings.AesKey}\"",
+                    $"OutputPath=\"{Settings.OutputPath}\"",
+                    $"DisplayLanguage=\"{Settings.DisplayLanguage}\"",
+                    $"TextLanguage=\"{Settings.TextLanguage}\""
+                };
+
+                File.WriteAllLines(ConfigFile, configLines);
+                Debug.WriteLine("[Config] Configuration file updated successfully");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Config] Failed to update configuration file: {ex.Message}");
             }
         }
     }

@@ -19,6 +19,7 @@ using SZExtractorGUI.Services.FileInfo;
 using SZExtractorGUI.Services.Configuration;
 using Configuration = SZExtractorGUI.Services.Configuration.Configuration;
 using SZExtractorGUI.Services.Localization;
+using SZExtractorGUI.Services.FileFetch;
 
 namespace SZExtractorGUI;
 

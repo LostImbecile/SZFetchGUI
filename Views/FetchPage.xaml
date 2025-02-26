@@ -172,22 +172,22 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                     <DataGridTextColumn
-                        Width="2*"
+                        Width="1.5*"
                         Binding="{Binding CharacterName}"
                         ElementStyle="{StaticResource LeftAlignedDataGridTextBlockStyle}"
-                        Header="Character Name"
-                        IsReadOnly="True" />
-                    <DataGridTextColumn
-                        Width="*"
-                        Binding="{Binding CharacterId}"
-                        ElementStyle="{StaticResource CenterAlignedDataGridTextBlockStyle}"
-                        Header="Character ID"
+                        Header="Name"
                         IsReadOnly="True" />
                     <DataGridTextColumn
                         Width="*"
                         Binding="{Binding Type}"
                         ElementStyle="{StaticResource CenterAlignedDataGridTextBlockStyle}"
                         Header="Type"
+                        IsReadOnly="True" />
+                    <DataGridTextColumn
+                        Width="*"
+                        Binding="{Binding CharacterId}"
+                        ElementStyle="{StaticResource CenterAlignedDataGridTextBlockStyle}"
+                        Header="ID"
                         IsReadOnly="True" />
                     <DataGridTextColumn
                         Width="*"

@@ -14,7 +14,7 @@ namespace SZExtractorGUI.Services.Localization
         private readonly Dictionary<string, Dictionary<string, string>> _characterNames = new(StringComparer.Ordinal); // Case-sensitive language lookup
         private readonly Dictionary<string, string> _loadedLocresFiles = new(StringComparer.Ordinal);
         private readonly IErrorHandlingService _errorHandlingService;
-        private readonly object _syncLock = new object();  // Add lock for thread safety
+        private readonly object _syncLock = new();  // Add lock for thread safety
 
         public CharacterNameManager(IErrorHandlingService errorHandlingService)
         {
@@ -22,6 +22,7 @@ namespace SZExtractorGUI.Services.Localization
             Debug.WriteLine("[Localization] Character name manager service created");
         }
 
+        // ...existing code...
         public async Task LoadLocresFile(string language, string filePath)
         {
             if (string.IsNullOrEmpty(language))
@@ -55,6 +56,7 @@ namespace SZExtractorGUI.Services.Localization
 
                 try
                 {
+                    Debug.WriteLine($"[Localization] Loading character names for {language} from file: {filePath}");
                     _loadedLocresFiles[language] = filePath;
                     _characterNames[language] = new Dictionary<string, string>(StringComparer.Ordinal);
 
@@ -69,7 +71,7 @@ namespace SZExtractorGUI.Services.Localization
                         {
                             if (entry.Key.StartsWith("ST_CHR_NAME_FULL_", StringComparison.Ordinal))
                             {
-                                var characterId = entry.Key.Substring("ST_CHR_NAME_FULL_".Length);
+                                var characterId = entry.Key["ST_CHR_NAME_FULL_".Length..];
                                 _characterNames[language][characterId] = entry.Value;
                                 entriesCount++;
                             }

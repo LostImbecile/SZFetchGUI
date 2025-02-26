@@ -7,12 +7,13 @@ using System.Threading.Tasks;
 using System.Windows;
 
 using SZExtractorGUI.Models;
-using SZExtractorGUI.Services.Fetch;
 using SZExtractorGUI.Services.FileInfo;
 using SZExtractorGUI.Services.Localization;
 using SZExtractorGUI.Services.State;
 using SZExtractorGUI.ViewModels;
 using SZExtractorGUI.Utilities;
+using SZExtractorGUI.Services.FileFetch;
+using System.Runtime;
 
 namespace SZExtractorGUI.Services.Initialisation
 {
@@ -32,12 +33,9 @@ namespace SZExtractorGUI.Services.Initialisation
         private readonly IServerConfigurationService _serverConfigurationService;
         private readonly IErrorHandlingService _errorHandlingService;
         private readonly IFetchOperationService _fetchOperationService;
-        private readonly IContentTypeService _contentTypeService;
-        private readonly IBackgroundOperationsService _backgroundOps;
-        private readonly IPackageInfo _packageInfo;
         private readonly Settings _settings;
         private bool _isInitialized;
-        private readonly HashSet<string> _loadedLanguages = new();
+        private readonly HashSet<string> _loadedLanguages = [];
         private readonly ICharacterNameManager _characterNameManager;
         
         public event EventHandler<bool> InitializationStateChanged;
@@ -49,9 +47,6 @@ namespace SZExtractorGUI.Services.Initialisation
             IServerConfigurationService serverConfigurationService,
             IErrorHandlingService errorHandlingService,
             IFetchOperationService fetchOperationService,
-            IContentTypeService contentTypeService,
-            IBackgroundOperationsService backgroundOps,
-            IPackageInfo packageInfo,
             ICharacterNameManager characterNameManager,
             Settings settings)
         {
@@ -59,11 +54,8 @@ namespace SZExtractorGUI.Services.Initialisation
             _serverConfigurationService = serverConfigurationService;
             _errorHandlingService = errorHandlingService;
             _fetchOperationService = fetchOperationService;
-            _contentTypeService = contentTypeService;
-            _backgroundOps = backgroundOps;
-            _settings = settings;
-            _packageInfo = packageInfo;
             _characterNameManager = characterNameManager; // Initialize field
+            _settings = settings;
             Debug.WriteLine("[Init] Initialization service created");
         }
 
@@ -99,12 +91,6 @@ namespace SZExtractorGUI.Services.Initialisation
                 UpdateInitializationState(true);
                 _errorHandlingService.ClearError();
                 Debug.WriteLine("[Init] Initialization completed successfully");
-                
-                // Load locres files after other initialization
-                await InitializeLocresAsync();
-
-                // Trigger initial fetch with default content type
-                await TriggerInitialFetchAsync();
             }
             catch (Exception ex)
             {
@@ -113,35 +99,6 @@ namespace SZExtractorGUI.Services.Initialisation
                 Debug.WriteLine($"[Init] Initialization failed: {ex.Message}");
                 OnConfigurationCompleted(false);
                 throw;
-            }
-        }
-
-        private async Task TriggerInitialFetchAsync()
-        {
-            try
-            {
-                // Add delay after configuration to ensure server is ready
-                await Task.Delay(1000);
-                
-                var defaultType = _contentTypeService.GetDefaultContentType();
-                if (defaultType != null)
-                {
-                    // Wrap in background operation like manual operations do
-                    await _backgroundOps.ExecuteOperationAsync(async () =>
-                    {
-                        var items = await _fetchOperationService.FetchItemsAsync(defaultType, _packageInfo, _settings.DisplayLanguage);
-                
-                        // Ensure we're on UI thread for updating collection
-                        await Application.Current.Dispatcher.InvokeAsync(() =>
-                        {
-                            Debug.WriteLine("[Init] Updating UI with initial fetch results");
-                        });
-                    });
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[Init] Initial fetch failed: {ex.Message}");
             }
         }
 

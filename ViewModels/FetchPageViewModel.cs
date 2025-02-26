@@ -20,6 +20,9 @@ using SZExtractorGUI.Services.FileInfo;
 using SZExtractorGUI.Services.Localization;
 using SZExtractorGUI.Services.Configuration;
 using SZExtractorGUI.Viewmodels;
+using System.Collections.Concurrent;
+using SZExtractorGUI.Services.FileFetch;
+using SZExtractorGUI.Utilities;
 
 namespace SZExtractorGUI.ViewModels
 {
@@ -29,7 +32,7 @@ namespace SZExtractorGUI.ViewModels
         private bool _isOperationInProgress = true;
         private ObservableCollection<ContentType> _contentTypes;
         private ContentType _selectedContentType;
-        private ObservableCollection<FetchItemViewModel> _remoteItems = new();
+        private ObservableCollection<FetchItemViewModel> _remoteItems = [];
         private ObservableCollection<FetchItemViewModel> _selectedItems;
         private FetchItemViewModel _selectedRemoteItem;
         private string _searchText;
@@ -44,18 +47,18 @@ namespace SZExtractorGUI.ViewModels
         private readonly IFetchOperationService _fetchOperationService;
         private readonly IItemFilterService _itemFilterService;
         private readonly IBackgroundOperationsService _backgroundOps;
-        private readonly ISzExtractorService _szExtractorService;
         private readonly IInitializationService _initializationService;
         private readonly ICharacterNameManager _characterNameManager;
         private readonly Settings _settings;
         private readonly IPackageInfo _packageInfo;
+        private readonly Configuration _configuration;
 
         // Add private field to store the command
         private RelayCommand _fetchFilesCommand;
         private RelayCommand _refreshCommand;
 
         // Add near the top with other private fields
-        private readonly Dictionary<string, FetchItemViewModel> _itemCache = new();
+        private readonly Dictionary<string, FetchItemViewModel> _itemCache = [];
 
         // Update the language mapping to preserve exact case
         private readonly Dictionary<string, string> _languageNameMapping = new(StringComparer.Ordinal)
@@ -78,7 +81,7 @@ namespace SZExtractorGUI.ViewModels
             { "fr", "French" },
             { "pt-BR", "Portuguese (Brazil)" }        // Preserve exact case
         };
-        public ObservableCollection<LanguageItem> AvailableLanguages { get; } = new();
+        public ObservableCollection<LanguageItem> AvailableLanguages { get; } = [];
 
         private LanguageOption _selectedLanguage = LanguageOption.All;
         public LanguageOption SelectedLanguage
@@ -102,11 +105,11 @@ namespace SZExtractorGUI.ViewModels
             IFetchOperationService fetchOperationService,
             IItemFilterService itemFilterService,
             IBackgroundOperationsService backgroundOps,
-            ISzExtractorService szExtractorService,
             IInitializationService initializationService,
             ICharacterNameManager characterNameManager,
             IPackageInfo packageInfo,
-            Settings settings)
+            Settings settings,
+            Configuration configuration) // Add configuration parameter
         {
             _contentTypeService = contentTypeService;
             _fetchOperationService = fetchOperationService;
@@ -116,10 +119,11 @@ namespace SZExtractorGUI.ViewModels
             _characterNameManager = characterNameManager;
             _packageInfo = packageInfo;
             _settings = settings;
+            _configuration = configuration; // Initialize configuration
 
             // Initialize languages first, before any async operations
             InitializeLanguages();
-            
+
             // Initialize collections
             InitializeCollections();
 
@@ -129,7 +133,7 @@ namespace SZExtractorGUI.ViewModels
                 Application.Current.Dispatcher.Invoke(() =>
                 {
                     IsOperationInProgress = isActive;
-                    (_fetchFilesCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                    UpdateCommandStates();
                 });
             };
 
@@ -169,7 +173,7 @@ namespace SZExtractorGUI.ViewModels
         private void InitializeLanguages()
         {
             Debug.WriteLine("[Languages] Initializing language collections");
-            
+
             // Convert all mapped languages to LanguageItems
             var languageItems = _languageNameMapping
                 .Select(kvp => new LanguageItem
@@ -190,16 +194,16 @@ namespace SZExtractorGUI.ViewModels
             // Ensure settings have valid defaults
             if (string.IsNullOrEmpty(_settings.DisplayLanguage))
                 _settings.DisplayLanguage = "en";
-            
+
             if (string.IsNullOrEmpty(_settings.TextLanguage))
                 _settings.TextLanguage = "en";
 
             // Set initial selected items
-            _selectedDisplayLanguageItem = AvailableLanguages.FirstOrDefault(x => 
-                x.Code.Equals(_settings.DisplayLanguage, StringComparison.OrdinalIgnoreCase)) 
+            _selectedDisplayLanguageItem = AvailableLanguages.FirstOrDefault(x =>
+                x.Code.Equals(_settings.DisplayLanguage, StringComparison.OrdinalIgnoreCase))
                 ?? AvailableLanguages.First(x => x.Code == "en");
-                
-            _selectedTextLanguageItem = AvailableLanguages.FirstOrDefault(x => 
+
+            _selectedTextLanguageItem = AvailableLanguages.FirstOrDefault(x =>
                 x.Code.Equals(_settings.TextLanguage, StringComparison.OrdinalIgnoreCase))
                 ?? AvailableLanguages.First(x => x.Code == "en");
 
@@ -230,10 +234,6 @@ namespace SZExtractorGUI.ViewModels
                     if (_initializationService.IsInitialized)
                     {
                         Debug.WriteLine("[Initialize] Initialization complete");
-
-                        // Wait for locres to load before fetching
-                        Debug.WriteLine($"[Initialize] Loading locres for {_settings.DisplayLanguage}");
-                        await LoadLocresForLanguageAsync(_settings.DisplayLanguage);
 
                         // Only fetch after locres is loaded
                         Debug.WriteLine("[Initialize] Starting initial fetch");
@@ -291,8 +291,8 @@ namespace SZExtractorGUI.ViewModels
         private async Task FetchItemsAsync()
         {
             if (SelectedContentType == null) return;
-
-            await LoadLocresForLanguageAsync(_settings.DisplayLanguage);
+            if (_settings.DisplayLanguage != "all")
+                await LoadLocresForLanguageAsync(_settings.DisplayLanguage);
 
             var items = await _fetchOperationService.FetchItemsAsync(
                 SelectedContentType,
@@ -315,7 +315,7 @@ namespace SZExtractorGUI.ViewModels
             if (items == null) return;
 
             Debug.WriteLine($"[UpdateItems] Updating {items.Count()} items");
-            
+
             // Cache selected items state
             var selectedItemIds = new HashSet<string>(SelectedItems.Select(item => GetItemUniqueKey(item)));
 
@@ -325,7 +325,7 @@ namespace SZExtractorGUI.ViewModels
             foreach (var item in items)
             {
                 var key = GetItemUniqueKey(item);
-                
+
                 // Check if we already have this item in cache
                 if (_itemCache.TryGetValue(key, out var existingItem))
                 {
@@ -351,14 +351,14 @@ namespace SZExtractorGUI.ViewModels
         }
 
         // Replace the existing GetItemUniqueKey method
-        private string GetItemUniqueKey(FetchItemViewModel item)
+        private static string GetItemUniqueKey(FetchItemViewModel item)
         {
             return $"{item.CharacterId}|{item.Container}";
         }
 
         private bool FilterItems(object item)
         {
-            if (!(item is FetchItemViewModel fetchItem))
+            if (item is not FetchItemViewModel fetchItem)
                 return false;
 
             var parameters = new FilterParameters
@@ -379,7 +379,7 @@ namespace SZExtractorGUI.ViewModels
         private async Task ExtractSelectedItemsAsync()
         {
             var selectedItems = SelectedItems.ToList();
-            if (!selectedItems.Any())
+            if (selectedItems.Count == 0)
             {
                 Debug.WriteLine("[Extract] No items selected");
                 return;
@@ -426,6 +426,7 @@ namespace SZExtractorGUI.ViewModels
 
         public void Dispose()
         {
+
             if (_disposed) return;
 
             if (_remoteItems != null)
@@ -440,6 +441,7 @@ namespace SZExtractorGUI.ViewModels
             _itemCache.Clear();
             _languageLoadSemaphore?.Dispose();
             _disposed = true;
+            GC.SuppressFinalize(this);
         }
 
         private void Items_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
@@ -563,7 +565,7 @@ namespace SZExtractorGUI.ViewModels
             {
                 if (SetProperty(ref _isOperationInProgress, value))
                 {
-                    (_fetchFilesCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                    UpdateCommandStates();
                 }
             }
         }
@@ -592,8 +594,8 @@ namespace SZExtractorGUI.ViewModels
 
         private void InitializeCollections()
         {
-            RemoteItems = new ObservableCollection<FetchItemViewModel>();
-            SelectedItems = new ObservableCollection<FetchItemViewModel>();
+            RemoteItems = [];
+            SelectedItems = [];
 
             // Initialize the collection view immediately
             _remoteItemsView = CollectionViewSource.GetDefaultView(RemoteItems);
@@ -624,27 +626,29 @@ namespace SZExtractorGUI.ViewModels
                 {
                     Debug.WriteLine($"[Language] Changing display language from {_settings.DisplayLanguage} to {languageCode}");
                     _settings.DisplayLanguage = languageCode;
+                    _configuration.SaveConfiguration(); // Save configuration
 
                     _ = Task.Run(async () =>
                     {
                         try
                         {
-                            await LoadLocresForLanguageAsync(languageCode);
+                            if (languageCode != "all")
+                                await LoadLocresForLanguageAsync(languageCode);
 
                             await Application.Current.Dispatcher.InvokeAsync(() =>
                             {
                                 try
                                 {
                                     Debug.WriteLine($"[Language] Updating character names for {_itemCache.Count} items");
-                                    
+
                                     foreach (var item in _itemCache.Values)
                                     {
                                         item.UpdateCharacterName(languageCode);
                                     }
 
                                     _remoteItemsView?.Refresh();
-                                    
-                                    var newItem = AvailableLanguages.FirstOrDefault(x => 
+
+                                    var newItem = AvailableLanguages.FirstOrDefault(x =>
                                         x.Code.Equals(languageCode, StringComparison.Ordinal));
                                     if (newItem != null && _selectedDisplayLanguageItem != newItem)
                                     {
@@ -680,41 +684,94 @@ namespace SZExtractorGUI.ViewModels
                 return;
             }
 
-            try
+            // Quick check if already loaded before taking semaphore
+            if (_characterNameManager.IsLocresLoaded(language))
             {
-                await _languageLoadSemaphore.WaitAsync();
+                Debug.WriteLine($"[LoadLocres] Language {language} already loaded, skipping");
+                return;
+            }
 
-                // Check again after acquiring semaphore
-                if (_characterNameManager.IsLocresLoaded(language))
+            // Try to mark this language as loading. If false, another thread is already loading it
+            if (!_languageLoadingState.TryAdd(language, true))
+            {
+                Debug.WriteLine($"[LoadLocres] Language {language} is already being loaded by another thread");
+
+                // Wait for the other thread to finish loading (up to timeout)
+                var waitStart = DateTime.UtcNow;
+                while (_languageLoadingState.ContainsKey(language))
                 {
-                    Debug.WriteLine($"[LoadLocres] Language {language} already loaded, skipping");
-                    return;
+                    if ((DateTime.UtcNow - waitStart).TotalMilliseconds > LANGUAGE_LOAD_TIMEOUT_MS)
+                    {
+                        Debug.WriteLine($"[LoadLocres] Timeout waiting for language {language} to load");
+                        throw new TimeoutException($"Timeout waiting for language {language} to load");
+                    }
+                    await Task.Delay(100); // Small delay to prevent tight loop
                 }
 
-                Debug.WriteLine($"[LoadLocres] Loading locres for {language}");
+                // Verify it was actually loaded
+                if (_characterNameManager.IsLocresLoaded(language))
+                {
+                    Debug.WriteLine($"[LoadLocres] Language {language} was loaded by another thread");
+                    return;
+                }
+            }
+
+            try
+            {
+                Debug.WriteLine($"[LoadLocres] Attempting to acquire semaphore for {language}");
+                if (!await _languageLoadSemaphore.WaitAsync(LANGUAGE_LOAD_TIMEOUT_MS))
+                {
+                    throw new TimeoutException($"Timeout waiting for semaphore to load language {language}");
+                }
+
+                Debug.WriteLine($"[LoadLocres] Acquired semaphore for {language}");
+
+                // Double-check if loaded after acquiring semaphore
+                if (_characterNameManager.IsLocresLoaded(language))
+                {
+                    Debug.WriteLine($"[LoadLocres] Language {language} was loaded while waiting for semaphore");
+                    return;
+                }
 
                 await _backgroundOps.ExecuteOperationAsync(async () =>
                 {
                     try
                     {
                         var locresFiles = await _fetchOperationService.GetLocresFiles();
-                        var languageFile = locresFiles?.FirstOrDefault(f => 
-                            f.Contains($"{language} - ", StringComparison.Ordinal));
+                        var languageFile = locresFiles?.FirstOrDefault(f =>
+                            LanguageCodeValidator.ExtractLanguageFromFileName(f) == language);
 
                         if (languageFile != null)
                         {
                             Debug.WriteLine($"[LoadLocres] Found locres file: {languageFile}");
-                            await _characterNameManager.LoadLocresFile(language, languageFile);
-                            
-                            // Verify the load was successful
-                            if (_characterNameManager.IsLocresLoaded(language))
+
+                            // Add retry logic for robustness
+                            const int maxRetries = 3;
+                            for (int attempt = 1; attempt <= maxRetries; attempt++)
                             {
-                                Debug.WriteLine($"[LoadLocres] Successfully loaded {language} locres");
+                                try
+                                {
+                                    await _characterNameManager.LoadLocresFile(language, languageFile);
+
+                                    if (_characterNameManager.IsLocresLoaded(language))
+                                    {
+                                        Debug.WriteLine($"[LoadLocres] Successfully loaded {language} locres");
+                                        return;
+                                    }
+
+                                    if (attempt < maxRetries)
+                                    {
+                                        Debug.WriteLine($"[LoadLocres] Retrying load for {language}, attempt {attempt + 1}");
+                                        await Task.Delay(100 * attempt); // Progressive delay between retries
+                                    }
+                                }
+                                catch (Exception ex) when (attempt < maxRetries)
+                                {
+                                    Debug.WriteLine($"[LoadLocres] Attempt {attempt} failed: {ex.Message}");
+                                }
                             }
-                            else
-                            {
-                                throw new InvalidOperationException($"Failed to load locres for {language}");
-                            }
+
+                            throw new InvalidOperationException($"Failed to load locres for {language} after {maxRetries} attempts");
                         }
                         else
                         {
@@ -732,6 +789,11 @@ namespace SZExtractorGUI.ViewModels
             finally
             {
                 _languageLoadSemaphore.Release();
+                Debug.WriteLine($"[LoadLocres] Released semaphore for {language}");
+
+                // Remove the loading state regardless of success/failure
+                _languageLoadingState.TryRemove(language, out _);
+                Debug.WriteLine($"[LoadLocres] Removed loading state for {language}");
             }
         }
 
@@ -772,6 +834,8 @@ namespace SZExtractorGUI.ViewModels
                 if (_settings.TextLanguage != languageCode)
                 {
                     _settings.TextLanguage = languageCode;
+                    _configuration.SaveConfiguration(); // Save configuration
+
                     // Update selected item if changed externally
                     var newItem = AvailableLanguages.FirstOrDefault(x => x.Code == languageCode);
                     if (newItem != null && _selectedTextLanguageItem != newItem)
@@ -816,8 +880,10 @@ namespace SZExtractorGUI.ViewModels
         }
 
         // Add these near the top of the class
-        private readonly SemaphoreSlim _languageLoadSemaphore = new(1, 1);
-        private readonly object _commandLock = new object();
+        private static readonly SemaphoreSlim _languageLoadSemaphore = new(1, 1);
+        private static readonly ConcurrentDictionary<string, bool> _languageLoadingState = new();
+        private const int LANGUAGE_LOAD_TIMEOUT_MS = 30000; // 30 second timeout
+        private readonly object _commandLock = new();
 
         // Add this helper method for updating command states
         private void UpdateCommandStates()

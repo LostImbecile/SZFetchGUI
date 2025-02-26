@@ -5,9 +5,9 @@ using SZExtractorGUI.Services.FileInfo;
 
 namespace SZExtractorGUI.Viewmodels
 {
-    public class FetchItemViewModel : BindableBase
+    public class FetchItemViewModel(IPackageInfo packageInfo) : BindableBase
     {
-        private readonly IPackageInfo _packageInfo;
+        private readonly IPackageInfo _packageInfo = packageInfo ?? throw new ArgumentNullException(nameof(packageInfo));
         private bool _isSelected;
         private string _characterName;
         private string _characterId;
@@ -16,21 +16,16 @@ namespace SZExtractorGUI.Viewmodels
         private bool _isMod;
         private string _contentPath;
         private bool _extractionFailed;
-        private string _currentDisplayLanguage;
-        private readonly object _lockObject = new object();
-
-        public FetchItemViewModel(IPackageInfo packageInfo)
-        {
-            _packageInfo = packageInfo ?? throw new ArgumentNullException(nameof(packageInfo));
-        }
+        private readonly object _lockObject = new();
 
         public FetchItemViewModel(IPackageInfo packageInfo, string filePath, string container, string contentType = null, string displayLanguage = "en")
             : this(packageInfo)
         {
             ContentPath = filePath;
             Container = container;
-            Type = contentType;
+           
             CharacterId = _packageInfo.GetCharacterIdFromPath(filePath);
+            Type = _packageInfo.getFileType(CharacterId, contentType);
             IsMod = _packageInfo.IsMod(filePath);
             
             // Initialize with proper character name
@@ -95,34 +90,20 @@ namespace SZExtractorGUI.Viewmodels
             private set => SetProperty(ref _contentPath, value);
         }
 
+        // Update UpdateCharacterName method to handle 'all' language case
         public void UpdateCharacterName(string displayLanguage)
         {
-            if (string.IsNullOrEmpty(displayLanguage) || string.IsNullOrEmpty(CharacterId))
-            {
-                Debug.WriteLine($"[UpdateCharacterName] Invalid update request - Lang: {displayLanguage}, ID: {CharacterId}");
+            if (string.IsNullOrEmpty(displayLanguage))
                 return;
-            }
 
             lock (_lockObject)
             {
-                if (_currentDisplayLanguage == displayLanguage && !string.IsNullOrEmpty(CharacterName))
+                // Get localized name from package info
+                CharacterName = _packageInfo.GetCharacterNameFromPath(ContentPath, displayLanguage);
+                
+                // Fallback to ID if name is empty or null
+                if (string.IsNullOrWhiteSpace(CharacterName))
                 {
-                    Debug.WriteLine($"[UpdateCharacterName] Already using language {displayLanguage} for {CharacterId}");
-                    return;
-                }
-
-                try
-                {
-                    var newName = _packageInfo.GetCharacterNameFromPath(CharacterId, displayLanguage);
-                    Debug.WriteLine($"[UpdateCharacterName] Updating {CharacterId} from '{CharacterName}' to '{newName}' using {displayLanguage}");
-
-                    _currentDisplayLanguage = displayLanguage;
-                    CharacterName = newName; // This will trigger both CharacterName and DisplayName property changes
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[UpdateCharacterName] Error updating name: {ex.Message}");
-                    // Fallback to character ID if name update fails
                     CharacterName = CharacterId;
                 }
             }
