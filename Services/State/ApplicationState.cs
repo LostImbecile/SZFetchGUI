@@ -3,7 +3,7 @@ using System.Windows.Threading;
 
 using SZExtractorGUI.Mvvm;
 
-namespace SZExtractorGUI.Services
+namespace SZExtractorGUI.Services.State
 {
     public class ApplicationState : BindableBase
     {

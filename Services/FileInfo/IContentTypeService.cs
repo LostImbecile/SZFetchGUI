@@ -1,7 +1,8 @@
 using System.Collections.ObjectModel;
+
 using SZExtractorGUI.Models;
 
-namespace SZExtractorGUI.Services
+namespace SZExtractorGUI.Services.FileInfo
 {
     public interface IContentTypeService
     {

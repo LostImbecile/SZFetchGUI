@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 
-namespace SZExtractorGUI.Services
+namespace SZExtractorGUI.Services.State
 {
     public interface IRetryService
     {

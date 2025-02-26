@@ -10,12 +10,28 @@ namespace SZExtractorGUI.Models
         private string _toolsDirectory;
         private string _outputPath;
 
+        // Update language properties to preserve case
+        private string _displayLanguage = "en";
+        private string _textLanguage = "en";
+
         public string GameDirectory { get; set; } = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\DRAGON BALL Sparking! ZERO\\SparkingZERO\\Content\\Paks";
         public string ServerExecutableName { get; set; } = "SZ_Extractor_Server.exe";
         public string ServerExecutablePath { get; private set; }
         public string EngineVersion { get; set; } = "GAME_UE5_1";
         public string AesKey { get; set; } = "0xb2407c45ea7c528738a94c0a25ea8f419de4377628eb30c0ae6a80dd9a9f3ef0";
         public string ServerBaseUrl { get; set; } = "http://localhost:5000/";
+
+        public string DisplayLanguage
+        {
+            get => _displayLanguage;
+            set => _displayLanguage = string.IsNullOrEmpty(value) ? "en" : value;
+        }
+
+        public string TextLanguage
+        {
+            get => _textLanguage;
+            set => _textLanguage = string.IsNullOrEmpty(value) ? "en" : value;
+        }
 
         public string OutputPath
         {

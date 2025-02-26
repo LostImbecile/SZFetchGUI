@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Windows.Threading;
 
-namespace SZExtractorGUI.Services
+namespace SZExtractorGUI.Services.State
 {
     public interface IErrorHandlingService
     {

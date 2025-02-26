@@ -1,11 +1,13 @@
-﻿using SZExtractorGUI.Mvvm;
-using SZExtractorGUI.Services;
-using System.IO;
+﻿using System;
+using System.Diagnostics;
+using SZExtractorGUI.Mvvm;
+using SZExtractorGUI.Services.FileInfo;
 
-namespace SZExtractorGUI.ViewModels
+namespace SZExtractorGUI.Viewmodels
 {
     public class FetchItemViewModel : BindableBase
     {
+        private readonly IPackageInfo _packageInfo;
         private bool _isSelected;
         private string _characterName;
         private string _characterId;
@@ -14,42 +16,31 @@ namespace SZExtractorGUI.ViewModels
         private bool _isMod;
         private string _contentPath;
         private bool _extractionFailed;
+        private string _currentDisplayLanguage;
+        private readonly object _lockObject = new object();
 
-        public FetchItemViewModel(string filePath, string container, string contentType = null)
+        public FetchItemViewModel(IPackageInfo packageInfo)
         {
-            ContentPath = filePath;
-            
-            Container = container;
-            IsMod = PackageInfo.IsMod(container);
-            
-            CharacterId = PackageInfo.GetCharacterIdFromPath(filePath);
-            CharacterName = PackageInfo.GetCharacterName(CharacterId);
-
-            Type = contentType ?? Path.GetExtension(filePath).TrimStart('.');
+            _packageInfo = packageInfo ?? throw new ArgumentNullException(nameof(packageInfo));
         }
 
-        // For ListView only
-        public string DisplayName
+        public FetchItemViewModel(IPackageInfo packageInfo, string filePath, string container, string contentType = null, string displayLanguage = "en")
+            : this(packageInfo)
         {
-            get
-            {
-                var baseText = IsMod ? 
-                    $"[MOD] {CharacterName} ({CharacterId})" : 
-                    $"{CharacterName} ({CharacterId})";
-                return _extractionFailed ? $"❌ {baseText}" : baseText;
-            }
+            ContentPath = filePath;
+            Container = container;
+            Type = contentType;
+            CharacterId = _packageInfo.GetCharacterIdFromPath(filePath);
+            IsMod = _packageInfo.IsMod(filePath);
+            
+            // Initialize with proper character name
+            UpdateCharacterName(displayLanguage);
         }
 
         public bool ExtractionFailed
         {
             get => _extractionFailed;
-            set
-            {
-                if (SetProperty(ref _extractionFailed, value))
-                {
-                    OnPropertyChanged(nameof(DisplayName));
-                }
-            }
+            set => SetProperty(ref _extractionFailed, value);
         }
 
         public bool IsSelected
@@ -58,17 +49,26 @@ namespace SZExtractorGUI.ViewModels
             set => SetProperty(ref _isSelected, value);
         }
 
-        // For DataGrid
         public string CharacterName
         {
             get => _characterName;
-            set => SetProperty(ref _characterName, value);
+            private set
+            {
+                if (SetProperty(ref _characterName, value))
+                {
+                    // Only notify DisplayName change if it actually changed
+                    OnPropertyChanged(nameof(DisplayName));
+                }
+            }
         }
+
+        // DisplayName is now just a proxy to CharacterName
+        public string DisplayName => CharacterName;
 
         public string CharacterId
         {
             get => _characterId;
-            set => SetProperty(ref _characterId, value);
+            private set => SetProperty(ref _characterId, value);
         }
 
         public string Type
@@ -86,13 +86,46 @@ namespace SZExtractorGUI.ViewModels
         public bool IsMod
         {
             get => _isMod;
-            set => SetProperty(ref _isMod, value);
+            private set => SetProperty(ref _isMod, value);
         }
 
         public string ContentPath
         {
             get => _contentPath;
-            set => SetProperty(ref _contentPath, value);
+            private set => SetProperty(ref _contentPath, value);
+        }
+
+        public void UpdateCharacterName(string displayLanguage)
+        {
+            if (string.IsNullOrEmpty(displayLanguage) || string.IsNullOrEmpty(CharacterId))
+            {
+                Debug.WriteLine($"[UpdateCharacterName] Invalid update request - Lang: {displayLanguage}, ID: {CharacterId}");
+                return;
+            }
+
+            lock (_lockObject)
+            {
+                if (_currentDisplayLanguage == displayLanguage && !string.IsNullOrEmpty(CharacterName))
+                {
+                    Debug.WriteLine($"[UpdateCharacterName] Already using language {displayLanguage} for {CharacterId}");
+                    return;
+                }
+
+                try
+                {
+                    var newName = _packageInfo.GetCharacterNameFromPath(CharacterId, displayLanguage);
+                    Debug.WriteLine($"[UpdateCharacterName] Updating {CharacterId} from '{CharacterName}' to '{newName}' using {displayLanguage}");
+
+                    _currentDisplayLanguage = displayLanguage;
+                    CharacterName = newName; // This will trigger both CharacterName and DisplayName property changes
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[UpdateCharacterName] Error updating name: {ex.Message}");
+                    // Fallback to character ID if name update fails
+                    CharacterName = CharacterId;
+                }
+            }
         }
     }
 }

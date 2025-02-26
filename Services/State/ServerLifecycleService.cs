@@ -8,8 +8,9 @@ using SZExtractorGUI.Models;
 using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using SZExtractorGUI.Services.Fetch;
 
-namespace SZExtractorGUI.Services
+namespace SZExtractorGUI.Services.State
 {
     public enum ServerState
     {
@@ -66,7 +67,7 @@ namespace SZExtractorGUI.Services
             _httpClient = httpClientFactory.CreateClient();
             _state = settings.ValidateServerPath() ? ServerState.NotStarted : ServerState.NotFound;
             _serverConfigurationService = serverConfigurationService;
-            
+
             Task.Run(MonitorServerAsync);
         }
 
@@ -114,7 +115,7 @@ namespace SZExtractorGUI.Services
 
                     Debug.WriteLine($"[Server] Starting process with parent PID: {Environment.ProcessId}");
                     Debug.WriteLine($"[Server] Working directory: {startInfo.WorkingDirectory}");
-                    
+
                     if (_serverProcess != null)
                     {
                         Debug.WriteLine("[Server] Cleaning up previous server process instance");
@@ -125,28 +126,28 @@ namespace SZExtractorGUI.Services
 
                     _serverProcess = new Process { StartInfo = startInfo };
                     _serverProcess.EnableRaisingEvents = true;
-                    
+
                     // Enhanced process lifetime monitoring
                     _serverProcess.Disposed += ServerProcess_Disposed;
                     _serverProcess.Exited += ServerProcess_Exited;
-                    
+
                     // Detailed output logging
-                    _serverProcess.OutputDataReceived += (s, e) => 
-                    { 
+                    _serverProcess.OutputDataReceived += (s, e) =>
+                    {
                         if (e.Data != null)
                         {
                             Debug.WriteLine($"[Server Output] {DateTime.Now:HH:mm:ss.fff} {e.Data}");
                         }
                     };
-                    
-                    _serverProcess.ErrorDataReceived += (s, e) => 
-                    { 
+
+                    _serverProcess.ErrorDataReceived += (s, e) =>
+                    {
                         if (e.Data != null)
                         {
                             Debug.WriteLine($"[Server Error] {DateTime.Now:HH:mm:ss.fff} {e.Data}");
                         }
                     };
-                    
+
                     if (!_serverProcess.Start())
                     {
                         LogState("Failed to start server process");
@@ -159,10 +160,10 @@ namespace SZExtractorGUI.Services
                     _serverProcess.BeginErrorReadLine();
 
                     UpdateState(ServerState.Starting);
-                    
+
                     // Give the server time to initialize
                     await Task.Delay(SERVER_STARTUP_DELAY_MS);
-                    
+
                     // Verify the process hasn't exited during startup
                     if (_serverProcess.HasExited)
                     {
@@ -206,11 +207,11 @@ namespace SZExtractorGUI.Services
         public void Dispose()
         {
             if (_disposed) return;
-            
+
             Debug.WriteLine("[Server] Starting disposal sequence");
-            
+
             _cts.Cancel();
-            
+
             _processLock.Dispose();
             _startupLock.Dispose();
             _httpClient.Dispose();
@@ -258,7 +259,7 @@ namespace SZExtractorGUI.Services
                 {
                     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                     await _httpClient.DeleteAsync($"{_settings.ServerBaseUrl}/shutdown", cts.Token);
-                    
+
                     // Wait for process to exit naturally
                     await Task.Delay(1000);
                 }
@@ -298,15 +299,12 @@ namespace SZExtractorGUI.Services
 
             try
             {
-                Debug.WriteLine($"[Server] Checking server status at {_settings.ServerBaseUrl}");
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
                 var response = await _httpClient.GetAsync(_settings.ServerBaseUrl, cts.Token);
                 var content = await response.Content.ReadAsStringAsync();
-                
+
                 _isConnected = true;
-                Debug.WriteLine($"[Server] Status check successful. Response: {response.StatusCode}");
-                Debug.WriteLine($"[Server] Response content: {content}");
-                
+
                 if (!_isConnected) // State transition from disconnected to connected
                 {
                     UpdateState(ServerState.Running);
@@ -331,14 +329,14 @@ namespace SZExtractorGUI.Services
             {
                 // Give the server a moment to start up
                 await Task.Delay(500, _cts.Token);
-                
+
                 // Skip configuration if this is the initial startup
                 if (!_initialConfigurationDone)
                 {
                     Debug.WriteLine("[Server] Skipping initial configuration (will be handled by InitializationService)");
                     return true;
                 }
-                
+
                 try
                 {
                     // Only configure on subsequent restarts
@@ -362,7 +360,6 @@ namespace SZExtractorGUI.Services
             {
                 try
                 {
-                    Debug.WriteLine("[Server] Checking server status...");
                     if (!await CheckServerStatusAsync())
                     {
                         Debug.WriteLine("[Server] Server unavailable, attempting to start...");
@@ -384,7 +381,7 @@ namespace SZExtractorGUI.Services
         {
             var oldState = _state;
             _state = newState;
-            
+
             if (oldState != newState)
             {
                 Debug.WriteLine($"[Server] State changed: {oldState} -> {newState} at {DateTime.Now:HH:mm:ss.fff}");

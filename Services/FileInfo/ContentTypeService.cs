@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 
 using SZExtractorGUI.Models;
 
-namespace SZExtractorGUI.Services
+namespace SZExtractorGUI.Services.FileInfo
 {
     public class ContentTypeService : IContentTypeService
     {
@@ -12,6 +12,11 @@ namespace SZExtractorGUI.Services
         {
             _contentTypes = new ObservableCollection<ContentType>
             {
+                 new ContentType(
+                    name: "Characters",
+                    filter: "\\BTLCV_.*\\.awb",
+                    description: "Character Voice Files"
+                ),
                 new ContentType(
                     name: "BGM",
                     filter: "\\\\bgm_main.*\\.awb",
@@ -20,18 +25,17 @@ namespace SZExtractorGUI.Services
                 new ContentType(
                     name: "Character Sound Effects",
                     filter: "\\BTLSE.*\\.awb",
-                    description: "Character Voice and Sound Effects"
-                ),
-                new ContentType(
-                    name: "Game Sound Effects",
-                    filter: "\\\\se_.*\\.awb",
-                    description: "Game Sound Effects"
-                ),
-                new ContentType(
-                    name: "Characters",
-                    filter: "\\BTLCV_.*\\.awb",
-                    description: "Character Assets"
+                    description: "Character Specific Sound Effects"
+                ), new ContentType(
+                    name: "Misc",
+                    filter: "\\\\(ADVIF|SHOP|VOICE|se)_.*\\.awb",
+                    description: "Miscellaenous Sounds & Lines"
+                ), new ContentType(
+                    name: "Text",
+                    filter: "\\.locres",
+                    description: "Text Files"
                 )
+
             };
         }
 

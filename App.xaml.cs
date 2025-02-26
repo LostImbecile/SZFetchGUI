@@ -5,7 +5,6 @@ using System.Windows;
 using SZExtractorGUI.Services;
 using SZExtractorGUI.ViewModels;
 using SZExtractorGUI.Views;
-using Configuration = SZExtractorGUI.Services.Configuration;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -13,6 +12,13 @@ using SZExtractorGUI.Models;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using SZExtractorGUI.Services.Initialisation;
+using SZExtractorGUI.Services.State;
+using SZExtractorGUI.Services.Fetch;
+using SZExtractorGUI.Services.FileInfo;
+using SZExtractorGUI.Services.Configuration;
+using Configuration = SZExtractorGUI.Services.Configuration.Configuration;
+using SZExtractorGUI.Services.Localization;
 
 namespace SZExtractorGUI;
 
@@ -89,7 +95,8 @@ public partial class App : Application
         services.AddSingleton<IInitializationService, InitializationService>();
         services.AddSingleton<IRetryService, RetryService>();
         services.AddSingleton<IBackgroundOperationsService, BackgroundOperationsService>();
-
+        services.AddSingleton<IPackageInfo, PackageInfo>();
+        services.AddSingleton<ICharacterNameManager, CharacterNameManager>();
         
         // Register Feature Services
         services.AddSingleton<IContentTypeService, ContentTypeService>();

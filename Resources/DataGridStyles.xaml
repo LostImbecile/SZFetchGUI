@@ -133,6 +133,19 @@
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
     </Style>
 
+    <!-- Add this new style after the CenterAlignedDataGridTextBlockStyle -->
+    <Style x:Key="LeftAlignedDataGridTextBlockStyle" TargetType="TextBlock">
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.ThemeForeground}" />
+        <Setter Property="FontSize" Value="{DynamicResource MahApps.Font.Size.Default}" />
+        <Setter Property="TextAlignment" Value="Left" />
+        <Setter Property="Padding" Value="5,0" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
     <!--  Style for TextBoxes in DataGridTextColumns (edit mode)  -->
     <Style x:Key="CenterAlignedDataGridTextBoxStyle" TargetType="TextBox">
         <Setter Property="HorizontalAlignment" Value="Center" />

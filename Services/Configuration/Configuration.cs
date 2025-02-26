@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Windows;
 using SZExtractorGUI.Models;
 
-namespace SZExtractorGUI.Services
+namespace SZExtractorGUI.Services.Configuration
 {
     public class Configuration
     {
@@ -92,6 +92,14 @@ namespace SZExtractorGUI.Services
                                 Settings.OutputPath = value;
                                 Debug.WriteLine($"[Config] Set OutputPath = '{value}'");
                                 break;
+                            case "displaylanguage":
+                                Settings.DisplayLanguage = value;
+                                Debug.WriteLine($"[Config] Set DisplayLanguage = '{value}'");
+                                break;
+                            case "textlanguage":
+                                Settings.TextLanguage = value;
+                                Debug.WriteLine($"[Config] Set TextLanguage = '{value}'");
+                                break;
                             default:
                                 Debug.WriteLine($"[Config] Unknown key: {key}");
                                 break;
@@ -132,7 +140,9 @@ namespace SZExtractorGUI.Services
                     $"Tools_Directory=\"{toolsDir}\"", 
                     $"EngineVersion=\"{Settings.EngineVersion}\"",
                     $"AesKey=\"{Settings.AesKey}\"",
-                    $"OutputPath=\"{outputDir}\""
+                    $"OutputPath=\"{outputDir}\"",
+                    $"DisplayLanguage=\"{Settings.DisplayLanguage}\"",
+                    $"TextLanguage=\"{Settings.TextLanguage}\""
                 };
 
                 Debug.WriteLine("[Config] Writing default configuration file");
@@ -155,7 +165,7 @@ namespace SZExtractorGUI.Services
 
             if (!Directory.Exists(Settings.GameDirectory))
             {
-                ShowFatalError($"Game directory not found:\n{Settings.GameDirectory}");
+                ShowFatalError($"Game directory not found, edit it in config.ini:\n{Settings.GameDirectory}");
             }
 
             // Validate server executable

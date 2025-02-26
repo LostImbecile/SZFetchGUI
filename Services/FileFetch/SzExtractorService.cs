@@ -7,9 +7,12 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using SZExtractorGUI.Models;
 
-namespace SZExtractorGUI.Services
+using SZExtractorGUI.Models;
+using SZExtractorGUI.Services.FileInfo;
+using SZExtractorGUI.Services.State;
+
+namespace SZExtractorGUI.Services.Fetch
 {
     public class SzExtractorService : ISzExtractorService, IDisposable
     {
@@ -178,11 +181,6 @@ namespace SZExtractorGUI.Services
                             Success = false, 
                             Message = "Failed to parse server response" 
                         };
-                    }
-
-                    if (PackageInfo.HasUpdates(filesDictionary))
-                    {
-                        PackageInfo.UpdateFileCounts(filesDictionary);
                     }
 
                     return new DumpResponse

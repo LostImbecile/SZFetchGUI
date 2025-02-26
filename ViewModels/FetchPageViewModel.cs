@@ -14,6 +14,12 @@ using System.Runtime;
 using System.Net.Http;
 using System.Windows.Threading;
 using System.Windows;
+using SZExtractorGUI.Services.Initialisation;
+using SZExtractorGUI.Services.Fetch;
+using SZExtractorGUI.Services.FileInfo;
+using SZExtractorGUI.Services.Localization;
+using SZExtractorGUI.Services.Configuration;
+using SZExtractorGUI.Viewmodels;
 
 namespace SZExtractorGUI.ViewModels
 {
@@ -40,19 +46,39 @@ namespace SZExtractorGUI.ViewModels
         private readonly IBackgroundOperationsService _backgroundOps;
         private readonly ISzExtractorService _szExtractorService;
         private readonly IInitializationService _initializationService;
+        private readonly ICharacterNameManager _characterNameManager;
+        private readonly Settings _settings;
+        private readonly IPackageInfo _packageInfo;
 
         // Add private field to store the command
         private RelayCommand _fetchFilesCommand;
         private RelayCommand _refreshCommand;
 
-        // Update the property to use the field
-        public ICommand FetchFilesCommand 
-        { 
-            get => _fetchFilesCommand;
-            private set => SetProperty(ref _fetchFilesCommand, (RelayCommand)value);
-        }
+        // Add near the top with other private fields
+        private readonly Dictionary<string, FetchItemViewModel> _itemCache = new();
 
-        public ICommand RefreshCommand { get; private set; }
+        // Update the language mapping to preserve exact case
+        private readonly Dictionary<string, string> _languageNameMapping = new(StringComparer.Ordinal)
+        {
+            { "all", "All Languages" },
+            { "en", "English" },
+            { "ja", "Japanese" },
+            { "zh-Hans", "Chinese (Simplified)" },    // Preserve exact case
+            { "zh-Hant", "Chinese (Traditional)" },   // Preserve exact case
+            { "ko", "Korean" },
+            { "th", "Thai" },
+            { "id", "Indonesian" },
+            { "ar", "Arabic" },
+            { "pl", "Polish" },
+            { "es", "Spanish" },
+            { "es-419", "Spanish (Latin America)" },
+            { "ru", "Russian" },
+            { "de", "German" },
+            { "it", "Italian" },
+            { "fr", "French" },
+            { "pt-BR", "Portuguese (Brazil)" }        // Preserve exact case
+        };
+        public ObservableCollection<LanguageItem> AvailableLanguages { get; } = new();
 
         private LanguageOption _selectedLanguage = LanguageOption.All;
         public LanguageOption SelectedLanguage
@@ -70,35 +96,47 @@ namespace SZExtractorGUI.ViewModels
         // Add event for item extraction completion
         public event EventHandler<(FetchItemViewModel Item, bool Success)> ItemExtractionCompleted;
 
+        // Update constructor to initialize languages immediately
         public FetchPageViewModel(
             IContentTypeService contentTypeService,
             IFetchOperationService fetchOperationService,
             IItemFilterService itemFilterService,
             IBackgroundOperationsService backgroundOps,
             ISzExtractorService szExtractorService,
-            IInitializationService initializationService)
+            IInitializationService initializationService,
+            ICharacterNameManager characterNameManager,
+            IPackageInfo packageInfo,
+            Settings settings)
         {
             _contentTypeService = contentTypeService;
             _fetchOperationService = fetchOperationService;
             _itemFilterService = itemFilterService;
             _backgroundOps = backgroundOps;
-            _szExtractorService = szExtractorService;
             _initializationService = initializationService;
+            _characterNameManager = characterNameManager;
+            _packageInfo = packageInfo;
+            _settings = settings;
 
-            // Initialize collections first
+            // Initialize languages first, before any async operations
+            InitializeLanguages();
+            
+            // Initialize collections
             InitializeCollections();
 
+            _isRefreshing = false;
             _backgroundOps.OperationStatusChanged += (s, isActive) =>
             {
-                IsOperationInProgress = isActive;
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    IsOperationInProgress = isActive;
+                    (_fetchFilesCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                });
             };
 
-            // Listen for server configuration completion but don't trigger refresh
             _initializationService.ConfigurationCompleted += (s, success) =>
             {
                 if (!success)
                 {
-                    // Only update progress ring if configuration fails
                     IsOperationInProgress = false;
                 }
             };
@@ -109,39 +147,121 @@ namespace SZExtractorGUI.ViewModels
             _ = InitializeAsync();
         }
 
+        // Replace the existing InitializeCommands method
         private void InitializeCommands()
         {
             _fetchFilesCommand = new RelayCommand(
                 async () => await ExtractSelectedItemsAsync(),
-                () => SelectedItems?.Any() == true
+                () => SelectedItems?.Any() == true && !IsOperationInProgress // Remove content type dependency
             );
 
-            RefreshCommand = new RelayCommand(
+            _refreshCommand = new RelayCommand(
                 async () => await ExecuteRefreshAsync(),
-                () => !_isRefreshing
+                () => !_isRefreshing && !IsOperationInProgress && SelectedContentType != null
             );
         }
 
+        // Add property for FetchFilesCommand (if not already present)
+        public ICommand FetchFilesCommand => _fetchFilesCommand;
+        public ICommand RefreshCommand => _refreshCommand;
+
+        // New method to handle immediate language initialization
+        private void InitializeLanguages()
+        {
+            Debug.WriteLine("[Languages] Initializing language collections");
+            
+            // Convert all mapped languages to LanguageItems
+            var languageItems = _languageNameMapping
+                .Select(kvp => new LanguageItem
+                {
+                    Code = kvp.Key,
+                    DisplayName = kvp.Value
+                })
+                .OrderBy(item => item.Code == "all" ? 0 : 1)
+                .ThenBy(item => item.DisplayName);
+
+            // Clear and populate available languages
+            AvailableLanguages.Clear();
+            foreach (var item in languageItems)
+            {
+                AvailableLanguages.Add(item);
+            }
+
+            // Ensure settings have valid defaults
+            if (string.IsNullOrEmpty(_settings.DisplayLanguage))
+                _settings.DisplayLanguage = "en";
+            
+            if (string.IsNullOrEmpty(_settings.TextLanguage))
+                _settings.TextLanguage = "en";
+
+            // Set initial selected items
+            _selectedDisplayLanguageItem = AvailableLanguages.FirstOrDefault(x => 
+                x.Code.Equals(_settings.DisplayLanguage, StringComparison.OrdinalIgnoreCase)) 
+                ?? AvailableLanguages.First(x => x.Code == "en");
+                
+            _selectedTextLanguageItem = AvailableLanguages.FirstOrDefault(x => 
+                x.Code.Equals(_settings.TextLanguage, StringComparison.OrdinalIgnoreCase))
+                ?? AvailableLanguages.First(x => x.Code == "en");
+
+            Debug.WriteLine($"[Languages] Initial Display Language: {_selectedDisplayLanguageItem.DisplayName}");
+            Debug.WriteLine($"[Languages] Initial Text Language: {_selectedTextLanguageItem.DisplayName}");
+
+            // Notify UI of initial values
+            OnPropertyChanged(nameof(AvailableLanguages));
+            OnPropertyChanged(nameof(SelectedDisplayLanguageItem));
+            OnPropertyChanged(nameof(SelectedTextLanguageItem));
+            OnPropertyChanged(nameof(DisplayLanguage));
+            OnPropertyChanged(nameof(TextLanguage));
+        }
+
+        // Update InitializeAsync to properly handle language initialization timing
         private async Task InitializeAsync()
         {
             try
             {
+                Debug.WriteLine("[Initialize] Starting initialization");
                 await _backgroundOps.ExecuteOperationAsync(async () =>
                 {
+                    Debug.WriteLine("[Initialize] Waiting for initialization service");
+
+                    // Wait for server initialization first
                     await _initializationService.InitializeAsync();
-                    // Only fetch initial data after successful initialization
+
                     if (_initializationService.IsInitialized)
                     {
+                        Debug.WriteLine("[Initialize] Initialization complete");
+
+                        // Wait for locres to load before fetching
+                        Debug.WriteLine($"[Initialize] Loading locres for {_settings.DisplayLanguage}");
+                        await LoadLocresForLanguageAsync(_settings.DisplayLanguage);
+
+                        // Only fetch after locres is loaded
+                        Debug.WriteLine("[Initialize] Starting initial fetch");
                         await FetchItemsAsync();
+
+                        // Update UI after everything is loaded
+                        await Application.Current.Dispatcher.InvokeAsync(() =>
+                        {
+                            _remoteItemsView?.Refresh();
+                        });
+                    }
+                    else
+                    {
+                        Debug.WriteLine("[Initialize] Initialization service not initialized");
                     }
                 });
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[Initialize] Error: {ex.Message}");
-                IsOperationInProgress = false;
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    IsOperationInProgress = false;
+                    (_fetchFilesCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                });
             }
         }
+
 
         private async Task ExecuteRefreshAsync()
         {
@@ -150,6 +270,8 @@ namespace SZExtractorGUI.ViewModels
             try
             {
                 _isRefreshing = true;
+                (_refreshCommand as RelayCommand)?.RaiseCanExecuteChanged();
+
                 await _backgroundOps.ExecuteOperationAsync(async () =>
                 {
                     await FetchItemsAsync();
@@ -162,49 +284,76 @@ namespace SZExtractorGUI.ViewModels
             finally
             {
                 _isRefreshing = false;
+                (_refreshCommand as RelayCommand)?.RaiseCanExecuteChanged();
             }
         }
 
         private async Task FetchItemsAsync()
         {
-            var items = await _fetchOperationService.FetchItemsAsync(SelectedContentType);
+            if (SelectedContentType == null) return;
+
+            await LoadLocresForLanguageAsync(_settings.DisplayLanguage);
+
+            var items = await _fetchOperationService.FetchItemsAsync(
+                SelectedContentType,
+                _packageInfo,
+                _settings.DisplayLanguage);  // Always use settings version
+
             if (items != null)
             {
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     UpdateItemsCollectionAsync(items).Wait();
-                    // Force UI refresh
                     OnPropertyChanged(nameof(RemoteItemsView));
                 });
             }
         }
 
+        // Replace the existing UpdateItemsCollectionAsync method
         public async Task UpdateItemsCollectionAsync(IEnumerable<FetchItemViewModel> items)
         {
             if (items == null) return;
 
-            // Cache selected items state - do NOT clear SelectedItems
-            var selectedItemIds = new HashSet<string>(SelectedItems.Select(x => x.CharacterId));
+            Debug.WriteLine($"[UpdateItems] Updating {items.Count()} items");
+            
+            // Cache selected items state
+            var selectedItemIds = new HashSet<string>(SelectedItems.Select(item => GetItemUniqueKey(item)));
 
             // Clear only remote items
             RemoteItems.Clear();
 
-            // Add new items and restore selection state for matching items
             foreach (var item in items)
             {
-                RemoteItems.Add(item);
-
-                // Preserve selection state if it was previously selected
-                if (selectedItemIds.Contains(item.CharacterId))
+                var key = GetItemUniqueKey(item);
+                
+                // Check if we already have this item in cache
+                if (_itemCache.TryGetValue(key, out var existingItem))
                 {
-                    item.IsSelected = true;
+                    // Update existing item's character name with current display language
+                    existingItem.UpdateCharacterName(_settings.DisplayLanguage);
+                    existingItem.IsSelected = selectedItemIds.Contains(key);
+                    RemoteItems.Add(existingItem);
+                }
+                else
+                {
+                    // Initialize new item with current display language
+                    item.UpdateCharacterName(_settings.DisplayLanguage);
+                    _itemCache[key] = item;
+                    item.IsSelected = selectedItemIds.Contains(key);
+                    RemoteItems.Add(item);
                 }
             }
 
             // Force UI updates
             _remoteItemsView?.Refresh();
-            _fetchFilesCommand?.RaiseCanExecuteChanged();
+            (_fetchFilesCommand as RelayCommand)?.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(RemoteItems));
+        }
+
+        // Replace the existing GetItemUniqueKey method
+        private string GetItemUniqueKey(FetchItemViewModel item)
+        {
+            return $"{item.CharacterId}|{item.Container}";
         }
 
         private bool FilterItems(object item)
@@ -217,16 +366,68 @@ namespace SZExtractorGUI.ViewModels
                 SearchText = SearchText,
                 ShowModsOnly = ShowModsOnly,
                 ShowGameFilesOnly = ShowGameFilesOnly,
-                LanguageOption = SelectedLanguage
+                LanguageOption = SelectedLanguage,
+                ContentType = SelectedContentType,  // Add ContentType
+                CurrentTextLanguage = _settings.TextLanguage  // Add current language
             };
 
+            // Pass the current content type to the filter service
             return _itemFilterService.FilterItem(fetchItem, parameters);
+        }
+
+        // Update ExtractSelectedItemsAsync with better error handling and logging
+        private async Task ExtractSelectedItemsAsync()
+        {
+            var selectedItems = SelectedItems.ToList();
+            if (!selectedItems.Any())
+            {
+                Debug.WriteLine("[Extract] No items selected");
+                return;
+            }
+
+            Debug.WriteLine($"[Extract] Starting extraction of {selectedItems.Count} items");
+
+            try
+            {
+                foreach (var item in selectedItems)
+                {
+                    await _backgroundOps.ExecuteOperationAsync(async () =>
+                    {
+                        Debug.WriteLine($"[Extract] Extracting item: {GetItemUniqueKey(item)}");
+                        var success = await _fetchOperationService.ExtractItemAsync(item);
+
+                        await Application.Current.Dispatcher.InvokeAsync(() =>
+                        {
+                            Debug.WriteLine($"[Extract] Item {GetItemUniqueKey(item)} extraction {(success ? "succeeded" : "failed")}");
+                            item.ExtractionFailed = !success;
+
+                            if (success)
+                            {
+                                item.IsSelected = false;
+                                // Remove from selected items collection
+                                SelectedItems.Remove(item);
+                            }
+
+                            ItemExtractionCompleted?.Invoke(this, (item, success));
+                        });
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Extract] Error during extraction: {ex.Message}");
+                throw; // Rethrow to let the UI handle the error
+            }
+            finally
+            {
+                (_fetchFilesCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            }
         }
 
         public void Dispose()
         {
             if (_disposed) return;
-            
+
             if (_remoteItems != null)
             {
                 RemoteItems.CollectionChanged -= Items_CollectionChanged;
@@ -236,6 +437,8 @@ namespace SZExtractorGUI.ViewModels
                 }
             }
 
+            _itemCache.Clear();
+            _languageLoadSemaphore?.Dispose();
             _disposed = true;
         }
 
@@ -278,6 +481,7 @@ namespace SZExtractorGUI.ViewModels
             set => SetProperty(ref _contentTypes, value);
         }
 
+        // Replace SelectedContentType property
         public ContentType SelectedContentType
         {
             get => _selectedContentType;
@@ -285,11 +489,13 @@ namespace SZExtractorGUI.ViewModels
             {
                 if (SetProperty(ref _selectedContentType, value))
                 {
-                    // Only trigger fetch when explicitly changed after initialization
+                    // Don't clear selections when changing content type
                     if (_initialized)
                     {
                         _ = ExecuteRefreshAsync();
                     }
+                    // Ensure fetch command state is updated
+                    (_fetchFilesCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 }
             }
         }
@@ -353,7 +559,13 @@ namespace SZExtractorGUI.ViewModels
         public bool IsOperationInProgress
         {
             get => _isOperationInProgress;
-            set => SetProperty(ref _isOperationInProgress, value);
+            set
+            {
+                if (SetProperty(ref _isOperationInProgress, value))
+                {
+                    (_fetchFilesCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                }
+            }
         }
 
         private void HandleItemSelection(FetchItemViewModel item, bool isSelected)
@@ -393,62 +605,235 @@ namespace SZExtractorGUI.ViewModels
 
             // Load content types after view initialization
             ContentTypes = _contentTypeService.GetContentTypes();
-            
+
             // Set selected type without triggering fetch
             _selectedContentType = _contentTypeService.GetDefaultContentType();
             OnPropertyChanged(nameof(SelectedContentType));
-            
+
             _initialized = true;
         }
 
-        private async Task ExtractSelectedItemsAsync()
+        // Update DisplayLanguage property to include better UI synchronization
+        public string DisplayLanguage
         {
-            var selectedItems = SelectedItems.ToList();
-            if (!selectedItems.Any()) return;
-
-            try
+            get => GetLanguageDisplayName(_settings.DisplayLanguage);
+            set
             {
-                foreach (var item in selectedItems)
+                var languageCode = GetLanguageCode(value);
+                if (_settings.DisplayLanguage != languageCode)
                 {
-                    await _backgroundOps.ExecuteOperationAsync(async () =>
+                    Debug.WriteLine($"[Language] Changing display language from {_settings.DisplayLanguage} to {languageCode}");
+                    _settings.DisplayLanguage = languageCode;
+
+                    _ = Task.Run(async () =>
                     {
-                        var success = await _fetchOperationService.ExtractItemAsync(item);
-                        
-                        await Application.Current.Dispatcher.InvokeAsync(() =>
+                        try
                         {
-                            // Update extraction status
-                            item.ExtractionFailed = !success;
-                            
-                            if (success)
+                            await LoadLocresForLanguageAsync(languageCode);
+
+                            await Application.Current.Dispatcher.InvokeAsync(() =>
                             {
-                                // Only unselect if extraction was successful
-                                item.IsSelected = false;
-                            }
-                            
-                            ItemExtractionCompleted?.Invoke(this, (item, success));
-                        });
+                                try
+                                {
+                                    Debug.WriteLine($"[Language] Updating character names for {_itemCache.Count} items");
+                                    
+                                    foreach (var item in _itemCache.Values)
+                                    {
+                                        item.UpdateCharacterName(languageCode);
+                                    }
+
+                                    _remoteItemsView?.Refresh();
+                                    
+                                    var newItem = AvailableLanguages.FirstOrDefault(x => 
+                                        x.Code.Equals(languageCode, StringComparison.Ordinal));
+                                    if (newItem != null && _selectedDisplayLanguageItem != newItem)
+                                    {
+                                        _selectedDisplayLanguageItem = newItem;
+                                        OnPropertyChanged(nameof(SelectedDisplayLanguageItem));
+                                    }
+
+                                    OnPropertyChanged(nameof(DisplayLanguage));
+                                    UpdateCommandStates();
+                                }
+                                catch (Exception ex)
+                                {
+                                    Debug.WriteLine($"[Language] Error updating UI: {ex.Message}");
+                                }
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"[Language] Error during language change: {ex.Message}");
+                            // Consider showing error to user here
+                        }
                     });
                 }
             }
-            catch (Exception ex)
+        }
+
+        // Update LoadLocresForLanguageAsync to ensure proper loading sequence
+        private async Task LoadLocresForLanguageAsync(string language)
+        {
+            if (string.IsNullOrEmpty(language))
             {
-                Debug.WriteLine($"[Extract] Error extracting files: {ex.Message}");
+                Debug.WriteLine("[LoadLocres] Empty language code provided");
+                return;
+            }
+
+            try
+            {
+                await _languageLoadSemaphore.WaitAsync();
+
+                // Check again after acquiring semaphore
+                if (_characterNameManager.IsLocresLoaded(language))
+                {
+                    Debug.WriteLine($"[LoadLocres] Language {language} already loaded, skipping");
+                    return;
+                }
+
+                Debug.WriteLine($"[LoadLocres] Loading locres for {language}");
+
+                await _backgroundOps.ExecuteOperationAsync(async () =>
+                {
+                    try
+                    {
+                        var locresFiles = await _fetchOperationService.GetLocresFiles();
+                        var languageFile = locresFiles?.FirstOrDefault(f => 
+                            f.Contains($"{language} - ", StringComparison.Ordinal));
+
+                        if (languageFile != null)
+                        {
+                            Debug.WriteLine($"[LoadLocres] Found locres file: {languageFile}");
+                            await _characterNameManager.LoadLocresFile(language, languageFile);
+                            
+                            // Verify the load was successful
+                            if (_characterNameManager.IsLocresLoaded(language))
+                            {
+                                Debug.WriteLine($"[LoadLocres] Successfully loaded {language} locres");
+                            }
+                            else
+                            {
+                                throw new InvalidOperationException($"Failed to load locres for {language}");
+                            }
+                        }
+                        else
+                        {
+                            Debug.WriteLine($"[LoadLocres] No locres file found for {language}");
+                            throw new FileNotFoundException($"No locres file found for {language}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[LoadLocres] Error in background operation: {ex.Message}");
+                        throw;
+                    }
+                });
+            }
+            finally
+            {
+                _languageLoadSemaphore.Release();
+            }
+        }
+
+        // Update GetLanguageDisplayName to be case-sensitive
+        private string GetLanguageDisplayName(string languageCode)
+        {
+            if (string.IsNullOrEmpty(languageCode))
+                return _languageNameMapping["en"]; // Default to English display name
+
+            return _languageNameMapping.TryGetValue(languageCode, out var name)
+                ? name
+                : languageCode; // Fallback to code if no mapping exists
+        }
+
+        // Update GetLanguageCode to be case-sensitive and preserve original case
+        private string GetLanguageCode(string displayName)
+        {
+            if (string.IsNullOrEmpty(displayName))
+                return "en"; // Default to English code
+
+            // First try direct match (in case it's already a code)
+            if (_languageNameMapping.ContainsKey(displayName))
+                return displayName.ToLowerInvariant();
+
+            // Then look for display name match
+            return _languageNameMapping
+                .FirstOrDefault(x => x.Value.Equals(displayName, StringComparison.OrdinalIgnoreCase))
+                .Key ?? "en"; // Default to English if no match found
+        }
+
+        // Update TextLanguage property to ensure it properly reflects settings
+        public string TextLanguage
+        {
+            get => GetLanguageDisplayName(_settings.TextLanguage);
+            set
+            {
+                var languageCode = GetLanguageCode(value);
+                if (_settings.TextLanguage != languageCode)
+                {
+                    _settings.TextLanguage = languageCode;
+                    // Update selected item if changed externally
+                    var newItem = AvailableLanguages.FirstOrDefault(x => x.Code == languageCode);
+                    if (newItem != null && _selectedTextLanguageItem != newItem)
+                    {
+                        SelectedTextLanguageItem = newItem;
+                    }
+                    OnPropertyChanged();
+                    _remoteItemsView?.Refresh();
+                }
+            }
+        }
+
+        // Add these fields near the top of the class with other private fields
+        private LanguageItem _selectedDisplayLanguageItem;
+        private LanguageItem _selectedTextLanguageItem;
+
+        // Add these properties after the other public properties
+        public LanguageItem SelectedDisplayLanguageItem
+        {
+            get => _selectedDisplayLanguageItem;
+            set
+            {
+                if (SetProperty(ref _selectedDisplayLanguageItem, value) && value != null)
+                {
+                    Debug.WriteLine($"[Languages] Display Language changed to: {value.DisplayName} ({value.Code})");
+                    DisplayLanguage = value.DisplayName;
+                }
+            }
+        }
+
+        public LanguageItem SelectedTextLanguageItem
+        {
+            get => _selectedTextLanguageItem;
+            set
+            {
+                if (SetProperty(ref _selectedTextLanguageItem, value) && value != null)
+                {
+                    Debug.WriteLine($"[Languages] Text Language changed to: {value.DisplayName} ({value.Code})");
+                    TextLanguage = value.DisplayName;
+                }
+            }
+        }
+
+        // Add these near the top of the class
+        private readonly SemaphoreSlim _languageLoadSemaphore = new(1, 1);
+        private readonly object _commandLock = new object();
+
+        // Add this helper method for updating command states
+        private void UpdateCommandStates()
+        {
+            lock (_commandLock)
+            {
+                (_fetchFilesCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (_refreshCommand as RelayCommand)?.RaiseCanExecuteChanged();
             }
         }
     }
 
-    public static class TaskExtensions
+    // Add this class for language selection
+    public class LanguageItem
     {
-        public static async Task<T> TimeoutAfter<T>(this Task<T> task, TimeSpan timeout)
-        {
-            using var cts = new CancellationTokenSource();
-            var completedTask = await Task.WhenAny(task, Task.Delay(timeout, cts.Token));
-            if (completedTask == task)
-            {
-                cts.Cancel();
-                return await task;
-            }
-            throw new TimeoutException("The operation has timed out.");
-        }
+        public string Code { get; set; }
+        public string DisplayName { get; set; }
     }
 }

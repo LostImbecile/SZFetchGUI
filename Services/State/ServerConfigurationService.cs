@@ -3,9 +3,10 @@ using System.IO;
 using System.Net.Http;
 
 using SZExtractorGUI.Models;
+using SZExtractorGUI.Services.Fetch;
 using SZExtractorGUI.ViewModels;
 
-namespace SZExtractorGUI.Services
+namespace SZExtractorGUI.Services.State
 {
     public interface IServerConfigurationService
     {
