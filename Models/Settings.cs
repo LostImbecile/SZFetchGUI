@@ -2,9 +2,32 @@ using System;
 using System.IO;
 using System.Diagnostics;
 using System.Windows;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace SZExtractorGUI.Models
 {
+    // Add this new class for centralized config keys
+    public static class ConfigKeys
+    {
+        public const string GameDirectory = "GameDirectory";
+        public const string ToolsDirectory = "Tools_Directory";
+        public const string EngineVersion = "EngineVersion";
+        public const string AesKey = "AesKey";
+        public const string OutputPath = "OutputPath";
+        public const string DisplayLanguage = "DisplayLanguage";
+        public const string TextLanguage = "TextLanguage";
+
+        // Helper method to get all config keys
+        public static IEnumerable<string> GetAllKeys()
+        {
+            return typeof(ConfigKeys)
+                .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy)
+                .Where(fi => fi.IsLiteral && !fi.IsInitOnly && fi.FieldType == typeof(string))
+                .Select(fi => (string)fi.GetValue(null)!);
+        }
+    }
+
     public class Settings
     {
         private string _toolsDirectory;

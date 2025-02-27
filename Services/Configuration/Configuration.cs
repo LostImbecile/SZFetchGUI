@@ -72,31 +72,31 @@ namespace SZExtractorGUI.Services.Configuration
                         // Pass the raw value to Settings - it will handle path conversion internally
                         switch (key.ToLower())
                         {
-                            case "gamedirectory":
+                            case var _ when key.Equals(ConfigKeys.GameDirectory, StringComparison.OrdinalIgnoreCase):
                                 Settings.GameDirectory = value;
                                 Debug.WriteLine($"[Config] Set GameDirectory = '{value}'");
                                 break;
-                            case "tools_directory":
+                            case var _ when key.Equals(ConfigKeys.ToolsDirectory, StringComparison.OrdinalIgnoreCase):
                                 Settings.ToolsDirectory = value;
                                 Debug.WriteLine($"[Config] Set ToolsDirectory = '{value}'");
                                 break;
-                            case "engineversion":
+                            case var _ when key.Equals(ConfigKeys.EngineVersion, StringComparison.OrdinalIgnoreCase):
                                 Settings.EngineVersion = value;
                                 Debug.WriteLine($"[Config] Set EngineVersion = '{value}'");
                                 break;
-                            case "aeskey":
+                            case var _ when key.Equals(ConfigKeys.AesKey, StringComparison.OrdinalIgnoreCase):
                                 Settings.AesKey = value;
                                 Debug.WriteLine($"[Config] Set AesKey = '{value}'");
                                 break;
-                            case "outputpath":
+                            case var _ when key.Equals(ConfigKeys.OutputPath, StringComparison.OrdinalIgnoreCase):
                                 Settings.OutputPath = value;
                                 Debug.WriteLine($"[Config] Set OutputPath = '{value}'");
                                 break;
-                            case "displaylanguage":
+                            case var _ when key.Equals(ConfigKeys.DisplayLanguage, StringComparison.OrdinalIgnoreCase):
                                 Settings.DisplayLanguage = value;
                                 Debug.WriteLine($"[Config] Set DisplayLanguage = '{value}'");
                                 break;
-                            case "textlanguage":
+                            case var _ when key.Equals(ConfigKeys.TextLanguage, StringComparison.OrdinalIgnoreCase):
                                 Settings.TextLanguage = value;
                                 Debug.WriteLine($"[Config] Set TextLanguage = '{value}'");
                                 break;
@@ -136,13 +136,13 @@ namespace SZExtractorGUI.Services.Configuration
                 var defaultConfig = new[]
                 {
                     "; SZ Extractor Configuration File",
-                    $"GameDirectory=\"{gameDir}\"",
-                    $"Tools_Directory=\"{toolsDir}\"", 
-                    $"EngineVersion=\"{Settings.EngineVersion}\"",
-                    $"AesKey=\"{Settings.AesKey}\"",
-                    $"OutputPath=\"{outputDir}\"",
-                    $"DisplayLanguage=\"{Settings.DisplayLanguage}\"",
-                    $"TextLanguage=\"{Settings.TextLanguage}\""
+                    $"{ConfigKeys.GameDirectory}=\"{gameDir}\"",
+                    $"{ConfigKeys.ToolsDirectory}=\"{toolsDir}\"", 
+                    $"{ConfigKeys.EngineVersion}=\"{Settings.EngineVersion}\"",
+                    $"{ConfigKeys.AesKey}=\"{Settings.AesKey}\"",
+                    $"{ConfigKeys.OutputPath}=\"{outputDir}\"",
+                    $"{ConfigKeys.DisplayLanguage}=\"{Settings.DisplayLanguage}\"",
+                    $"{ConfigKeys.TextLanguage}=\"{Settings.TextLanguage}\""
                 };
 
                 Debug.WriteLine("[Config] Writing default configuration file");
@@ -157,24 +157,45 @@ namespace SZExtractorGUI.Services.Configuration
 
         private void ValidateSettings()
         {
-            // Validate game directory
-            if (string.IsNullOrWhiteSpace(Settings.GameDirectory))
+            // First check if required entries exist in config and append if missing
+            var existingLines = File.ReadAllLines(ConfigFile).ToList();
+            bool needsSave = false;
+
+            // Check and append required entries before validation
+            if (!existingLines.Any(l => l.TrimStart().StartsWith($"{ConfigKeys.GameDirectory}=", StringComparison.OrdinalIgnoreCase)))
             {
-                ShowFatalError("Game_Directory not specified in config.ini");
+                Debug.WriteLine("[Config] GameDirectory entry missing in config.ini, appending");
+                existingLines.Add($"{ConfigKeys.GameDirectory}=\"{Settings.GameDirectory}\"");
+                needsSave = true;
             }
 
+            if (!existingLines.Any(l => l.TrimStart().StartsWith($"{ConfigKeys.OutputPath}=", StringComparison.OrdinalIgnoreCase)))
+            {
+                var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                var relativeOutputPath = Path.GetRelativePath(baseDir, Settings.OutputPath);
+                Debug.WriteLine("[Config] OutputPath entry missing in config.ini, appending");
+                existingLines.Add($"{ConfigKeys.OutputPath}=\"{relativeOutputPath}\"");
+                needsSave = true;
+            }
+
+            // Save missing entries before validation
+            if (needsSave)
+            {
+                Debug.WriteLine("[Config] Writing appended entries to config.ini");
+                File.WriteAllLines(ConfigFile, existingLines);
+            }
+
+            // Now do the actual validation that might trigger fatal errors
             if (!Directory.Exists(Settings.GameDirectory))
             {
                 ShowFatalError($"Game directory not found, edit it in config.ini:\n{Settings.GameDirectory}");
             }
 
-            // Validate server executable
             if (!Settings.ValidateServerPath())
             {
                 ShowFatalError($"Server executable not found or not accessible at:\n{Settings.ServerExecutablePath}");
             }
 
-            // Ensure output path is valid
             try
             {
                 Directory.CreateDirectory(Settings.OutputPath);
@@ -189,16 +210,37 @@ namespace SZExtractorGUI.Services.Configuration
         {
             try
             {
-                var configLines = new[]
+                var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                var relativeToolsDirectory = Path.GetRelativePath(baseDir, Settings.ToolsDirectory);
+                var relativeOutputPath = Path.GetRelativePath(baseDir, Settings.OutputPath);
+
+                var configLines = File.Exists(ConfigFile) ? File.ReadAllLines(ConfigFile).ToList() : new List<string>();
+
+                var updatedConfig = new Dictionary<string, string>
                 {
-                    $"GameDirectory=\"{Settings.GameDirectory}\"",
-                    $"Tools_Directory=\"{Settings.ToolsDirectory}\"",
-                    $"EngineVersion=\"{Settings.EngineVersion}\"",
-                    $"AesKey=\"{Settings.AesKey}\"",
-                    $"OutputPath=\"{Settings.OutputPath}\"",
-                    $"DisplayLanguage=\"{Settings.DisplayLanguage}\"",
-                    $"TextLanguage=\"{Settings.TextLanguage}\""
+                    { ConfigKeys.GameDirectory, Settings.GameDirectory },
+                    { ConfigKeys.ToolsDirectory, relativeToolsDirectory },
+                    { ConfigKeys.EngineVersion, Settings.EngineVersion },
+                    { ConfigKeys.AesKey, Settings.AesKey },
+                    { ConfigKeys.OutputPath, relativeOutputPath },
+                    { ConfigKeys.DisplayLanguage, Settings.DisplayLanguage },
+                    { ConfigKeys.TextLanguage, Settings.TextLanguage }
                 };
+
+                foreach (var key in updatedConfig.Keys)
+                {
+                    var lineIndex = configLines.FindIndex(line => line.TrimStart().StartsWith($"{key}=", StringComparison.OrdinalIgnoreCase));
+                    var newLine = $"{key}=\"{updatedConfig[key]}\"";
+
+                    if (lineIndex >= 0)
+                    {
+                        configLines[lineIndex] = newLine;
+                    }
+                    else
+                    {
+                        configLines.Add(newLine);
+                    }
+                }
 
                 File.WriteAllLines(ConfigFile, configLines);
                 Debug.WriteLine("[Config] Configuration file updated successfully");
