@@ -11,7 +11,7 @@ using System.Windows.Media.TextFormatting;
 
 namespace SZExtractorGUI.Services.FileInfo
 {
-    public class PackageInfo(ICharacterNameManager characterNameManager) : IPackageInfo
+    public partial class PackageInfo(ICharacterNameManager characterNameManager) : IPackageInfo
     {
         private readonly ICharacterNameManager _characterNameManager = characterNameManager;
 
@@ -65,7 +65,10 @@ namespace SZExtractorGUI.Services.FileInfo
                         name = strippedId;
                     }
                     else
-                        name = name.Replace("Super Saiyan God", "SSG").Replace("Super Saiyan", "SSJ").Replace("SSG SSJ", "SSB");
+                        name = name.Replace("Super Saiyan God", "SSG").Replace("Super Saiyan", "SSJ").Replace("SSG SSJ", "SSB").Replace("Ultra Instinct","UI");
+
+                    // Add regex replacement for "SSJ [0-9]" to "SSJN"
+                    name = SSJRegex().Replace(name, "SSJ$1");
 
                     if (isAlt)
                         name += " (Alt)";
@@ -103,9 +106,9 @@ namespace SZExtractorGUI.Services.FileInfo
             if (id.StartsWith("se_", StringComparison.OrdinalIgnoreCase) || id.StartsWith("BTLSE", StringComparison.OrdinalIgnoreCase))
                 return "Sound Effect";
             if (LanguageUtil.IsJapaneseContent(id))
-                return "Japanese Voice";
+                return "(JP) Voice";
             if (LanguageUtil.IsEnglishContent(id))
-                return "English Voice";
+                return "(US) Voice";
             return contentType;
         }
 
@@ -113,5 +116,8 @@ namespace SZExtractorGUI.Services.FileInfo
         {
             return path.Contains("_p", StringComparison.OrdinalIgnoreCase);
         }
+
+        [GeneratedRegex(@"SSJ (\d)")]
+        private static partial Regex SSJRegex();
     }
 }

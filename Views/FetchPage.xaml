@@ -180,7 +180,7 @@
                     <DataGridTextColumn
                         Width="*"
                         Binding="{Binding Type}"
-                        ElementStyle="{StaticResource CenterAlignedDataGridTextBlockStyle}"
+                        ElementStyle="{StaticResource LeftAlignedDataGridTextBlockStyle}"
                         Header="Type"
                         IsReadOnly="True" />
                     <DataGridTextColumn
