@@ -58,6 +58,9 @@ namespace SZExtractorGUI.Services.Fetch
             {
                 Debug.WriteLine($"[Extract] Starting extraction for path: {request.ContentPath}");
 
+                if (String.IsNullOrEmpty(request.OutputPath))
+                    request.OutputPath = _settings.OutputPath;
+
                 using var cts = new CancellationTokenSource(_requestTimeout);
                 Debug.WriteLine($"[Extract] Sending extract request...");
                 var response = await _httpClient.PostAsJsonAsync("extract", request, cts.Token);

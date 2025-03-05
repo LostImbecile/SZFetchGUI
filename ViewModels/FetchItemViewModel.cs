@@ -26,7 +26,7 @@ namespace SZExtractorGUI.Viewmodels
            
             CharacterId = _packageInfo.GetCharacterIdFromPath(filePath);
             Type = _packageInfo.getFileType(CharacterId, contentType);
-            IsMod = _packageInfo.IsMod(filePath);
+            IsMod = _packageInfo.IsMod(container);
             
             // Initialize with proper character name
             UpdateCharacterName(displayLanguage);

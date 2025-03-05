@@ -216,7 +216,6 @@ namespace SZExtractorGUI.Services.FileFetch
             }
         }
 
-        // ...existing code...
         private static string ExtractLanguageCode(string path)
         {
             // Extract language code based on path structure

@@ -112,9 +112,9 @@ namespace SZExtractorGUI.Services.FileInfo
             return contentType;
         }
 
-        public bool IsMod(string path)
+        public bool IsMod(string container)
         {
-            return path.Contains("_p", StringComparison.OrdinalIgnoreCase);
+            return container.Contains("_p", StringComparison.OrdinalIgnoreCase);
         }
 
         [GeneratedRegex(@"SSJ (\d)")]

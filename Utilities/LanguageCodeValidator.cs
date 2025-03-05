@@ -20,7 +20,6 @@ namespace SZExtractorGUI.Utilities
             return !string.IsNullOrEmpty(code) && ValidLanguages.Contains(code);
         }
 
-        // ...existing code...
         public static string ExtractLanguageFromFileName(string filePath)
         {
             if (string.IsNullOrEmpty(filePath)) return null;
@@ -29,17 +28,29 @@ namespace SZExtractorGUI.Utilities
             var directory = Path.GetDirectoryName(filePath);
             if (!string.IsNullOrEmpty(directory))
             {
+                // Check immediate parent directory
                 var dirName = Path.GetFileName(directory);
                 if (ValidLanguages.Contains(dirName))
                 {
                     return dirName;
                 }
+
+                // Check grandparent directory
+                var parentDirectory = Path.GetDirectoryName(directory);
+                if (!string.IsNullOrEmpty(parentDirectory))
+                {
+                    var parentDirName = Path.GetFileName(parentDirectory);
+                    if (ValidLanguages.Contains(parentDirName))
+                    {
+                        return parentDirName;
+                    }
+                }
             }
-            Debug.WriteLine($"[LanguageCodeValidator] Unable to extract language code from directory {directory}");
+            Debug.WriteLine($"[LanguageCodeValidator] Unable to extract language code from directory hierarchy: {directory}");
 
             // Fallback: Check legacy format "languagecode - Data.locres"
             var fileName = Path.GetFileName(filePath);
-            var parts = fileName.Split([" - "], StringSplitOptions.None);
+            var parts = fileName.Split(new[] { " - " }, StringSplitOptions.None);
             if (parts.Length == 2 && parts[1] == "Data.locres")
             {
                 var languageCode = parts[0];
