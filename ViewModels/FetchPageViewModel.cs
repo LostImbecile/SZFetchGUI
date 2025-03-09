@@ -23,6 +23,7 @@ using SZExtractorGUI.Viewmodels;
 using System.Collections.Concurrent;
 using SZExtractorGUI.Services.FileFetch;
 using SZExtractorGUI.Utilities;
+using SZExtractorGUI.Services.State;
 
 namespace SZExtractorGUI.ViewModels
 {
@@ -52,6 +53,7 @@ namespace SZExtractorGUI.ViewModels
         private readonly Settings _settings;
         private readonly IPackageInfo _packageInfo;
         private readonly Configuration _configuration;
+        private readonly IServerConfigurationService _serverConfigurationService;
 
         // Add private field to store the command
         private RelayCommand _fetchFilesCommand;
@@ -109,7 +111,8 @@ namespace SZExtractorGUI.ViewModels
             ICharacterNameManager characterNameManager,
             IPackageInfo packageInfo,
             Settings settings,
-            Configuration configuration) // Add configuration parameter
+            Configuration configuration,
+            IServerConfigurationService serverConfigurationService) // Add new parameter
         {
             _contentTypeService = contentTypeService;
             _fetchOperationService = fetchOperationService;
@@ -120,6 +123,7 @@ namespace SZExtractorGUI.ViewModels
             _packageInfo = packageInfo;
             _settings = settings;
             _configuration = configuration; // Initialize configuration
+            _serverConfigurationService = serverConfigurationService; // Initialize new field
 
             // Initialize languages first, before any async operations
             InitializeLanguages();
@@ -274,12 +278,76 @@ namespace SZExtractorGUI.ViewModels
 
                 await _backgroundOps.ExecuteOperationAsync(async () =>
                 {
-                    await FetchItemsAsync();
+                    // Call the full refresh with configure method specifically for the Refresh button
+                    await ExecuteFullRefreshWithConfigureAsync();
                 });
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[Refresh] Error: {ex.Message}");
+            }
+            finally
+            {
+                _isRefreshing = false;
+                (_refreshCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            }
+        }
+
+        // Add this new method to handle the complete refresh with configure sequence
+        private async Task ExecuteFullRefreshWithConfigureAsync()
+        {
+            try
+            {
+                Debug.WriteLine("[Refresh] Starting first refresh before configuration");
+                // First refresh - get the current items
+                await FetchItemsAsync();
+                
+                // Now call configure
+                Debug.WriteLine("[Refresh] Executing server configuration");
+                bool configSuccess = await _serverConfigurationService.ConfigureServerAsync(_settings);
+                
+                if (configSuccess)
+                {
+                    Debug.WriteLine("[Refresh] Configuration successful, starting second refresh");
+                }
+                else
+                {
+                    Debug.WriteLine("[Refresh] Configuration failed or completed with warnings");
+                }
+                
+                // Second refresh - always refresh again even if configure had issues
+                Debug.WriteLine("[Refresh] Starting second refresh after configuration");
+                await FetchItemsAsync();
+                
+                Debug.WriteLine("[Refresh] Full refresh cycle completed");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Refresh] Error during full refresh cycle: {ex.Message}");
+                // Let the outer method handle general exceptions
+                throw;
+            }
+        }
+
+        // New method for simple refresh without configure (for tab changes, etc.)
+        private async Task ExecuteSimpleRefreshAsync()
+        {
+            if (SelectedContentType == null || _isRefreshing) return;
+
+            try
+            {
+                _isRefreshing = true;
+                (_refreshCommand as RelayCommand)?.RaiseCanExecuteChanged();
+
+                await _backgroundOps.ExecuteOperationAsync(async () =>
+                {
+                    Debug.WriteLine("[SimpleRefresh] Refreshing items without configuration");
+                    await FetchItemsAsync();
+                });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[SimpleRefresh] Error: {ex.Message}");
             }
             finally
             {
@@ -494,7 +562,8 @@ namespace SZExtractorGUI.ViewModels
                     // Don't clear selections when changing content type
                     if (_initialized)
                     {
-                        _ = ExecuteRefreshAsync();
+                        // Use simple refresh for content type changes (e.g., tab changes)
+                        _ = ExecuteSimpleRefreshAsync();
                     }
                     // Ensure fetch command state is updated
                     (_fetchFilesCommand as RelayCommand)?.RaiseCanExecuteChanged();
