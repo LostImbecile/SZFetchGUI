@@ -114,8 +114,29 @@ namespace SZExtractorGUI.Services.FileInfo
 
         public bool IsMod(string container)
         {
-            return container.Contains("_p", StringComparison.OrdinalIgnoreCase);
+            // Check for _P which is a common mod indicator
+            if (container.Contains("_p", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // Check if it's a valid game container using regex
+            // Valid formats: pakchunkN-Windows, pakchunkNoptional-Windows, or DLC_*
+            var baseGameRegex = GameContainerRegex();
+            var dlcRegex = DlcContainerRegex();
+
+            // If it matches either pattern, it's a valid game container (not a mod)
+            bool isValidGameContainer = baseGameRegex.IsMatch(container) || dlcRegex.IsMatch(container);
+
+            // Return true (is mod) when it's not a valid game container
+            return !isValidGameContainer;
         }
+
+        [GeneratedRegex(@"pakchunk\d+(?:optional)?-Windows")]
+        private static partial Regex GameContainerRegex();
+
+        [GeneratedRegex(@"DLC_[A-Za-z0-9]+")]
+        private static partial Regex DlcContainerRegex();
 
         [GeneratedRegex(@"SSJ (\d)")]
         private static partial Regex SSJRegex();
