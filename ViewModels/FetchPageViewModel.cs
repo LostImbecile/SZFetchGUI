@@ -421,7 +421,7 @@ namespace SZExtractorGUI.ViewModels
         // Replace the existing GetItemUniqueKey method
         private static string GetItemUniqueKey(FetchItemViewModel item)
         {
-            return $"{item.CharacterId}|{item.Container}";
+            return $"{item.ContentPath}|{item.Container}";
         }
 
         private bool FilterItems(object item)

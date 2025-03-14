@@ -90,7 +90,6 @@ namespace SZExtractorGUI.Viewmodels
             private set => SetProperty(ref _contentPath, value);
         }
 
-        // Update UpdateCharacterName method to handle 'all' language case
         public void UpdateCharacterName(string displayLanguage)
         {
             if (string.IsNullOrEmpty(displayLanguage))

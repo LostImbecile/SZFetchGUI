@@ -8,6 +8,7 @@ using SZExtractorGUI.Utilities;
 using SZExtractorGUI.Services.Localization;
 using System.Diagnostics;
 using System.Windows.Media.TextFormatting;
+using SZExtractorGUI.ViewModels;
 
 namespace SZExtractorGUI.Services.FileInfo
 {
@@ -65,7 +66,7 @@ namespace SZExtractorGUI.Services.FileInfo
                         name = strippedId;
                     }
                     else
-                        name = name.Replace("Super Saiyan God", "SSG").Replace("Super Saiyan", "SSJ").Replace("SSG SSJ", "SSB").Replace("Ultra Instinct","UI");
+                        name = name.Replace("Super Saiyan God", "SSG").Replace("Super Saiyan", "SSJ").Replace("SSG SSJ", "SSB").Replace("Ultra Instinct", "UI");
 
                     // Add regex replacement for "SSJ [0-9]" to "SSJN"
                     name = SSJRegex().Replace(name, "SSJ$1");
@@ -84,7 +85,9 @@ namespace SZExtractorGUI.Services.FileInfo
             else if (!String.IsNullOrEmpty(filePath))
             {
                 String[] temp = filePath.Split("/");
-                String language = temp.ElementAtOrDefault(temp.Length - 2);
+                String language = "??";
+                if (temp.Length > 3)
+                    language = temp.ElementAtOrDefault(temp.Length - 2);
                 if (id.Equals("Data", StringComparison.OrdinalIgnoreCase))
                 {
                     name = "General Text";
@@ -108,7 +111,7 @@ namespace SZExtractorGUI.Services.FileInfo
             if (LanguageUtil.IsJapaneseContent(id))
                 return "(JP) Voice";
             if (LanguageUtil.IsEnglishContent(id))
-                return "(US) Voice";
+                return "(EN) Voice";
             return contentType;
         }
 
