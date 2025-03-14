@@ -133,7 +133,7 @@
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
     </Style>
 
-    <!-- Add this new style after the CenterAlignedDataGridTextBlockStyle -->
+    <!--  Add this new style after the CenterAlignedDataGridTextBlockStyle  -->
     <Style x:Key="LeftAlignedDataGridTextBlockStyle" TargetType="TextBlock">
         <Setter Property="HorizontalAlignment" Value="Left" />
         <Setter Property="VerticalAlignment" Value="Center" />
@@ -157,5 +157,20 @@
         <Setter Property="FontSize" Value="{DynamicResource MahApps.Font.Size.Default}" />
         <Setter Property="Focusable" Value="False" />
         <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+
+    <!--  Add after the CenterAlignedDataGridTextBoxStyle  -->
+    <Style
+        x:Key="ColoredSymbolDataGridTextBlockStyle"
+        BasedOn="{StaticResource CenterAlignedDataGridTextBlockStyle}"
+        TargetType="TextBlock">
+        <Style.Triggers>
+            <Trigger Property="Text" Value="✓">
+                <Setter Property="Foreground" Value="LightGreen" />
+            </Trigger>
+            <Trigger Property="Text" Value="❌">
+                <Setter Property="Foreground" Value="DarkRed" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 </ResourceDictionary>

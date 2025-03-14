@@ -178,7 +178,7 @@
                         Header="Name"
                         IsReadOnly="True" />
                     <DataGridTextColumn
-                        Width="*"
+                        Width="100"
                         Binding="{Binding Type}"
                         ElementStyle="{StaticResource LeftAlignedDataGridTextBlockStyle}"
                         Header="Type"
@@ -198,7 +198,8 @@
                     <DataGridTextColumn
                         Width="60"
                         Binding="{Binding IsMod, Converter={StaticResource BooleanToSymbolConverter}}"
-                        ElementStyle="{StaticResource CenterAlignedDataGridTextBlockStyle}"
+                        CanUserResize="False"
+                        ElementStyle="{StaticResource ColoredSymbolDataGridTextBlockStyle}"
                         Header="Mod"
                         IsReadOnly="True" />
                 </DataGrid.Columns>
