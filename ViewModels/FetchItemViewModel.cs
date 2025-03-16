@@ -14,6 +14,7 @@ namespace SZExtractorGUI.Viewmodels
         private string _type;
         private string _container;
         private bool _isMod;
+        private bool _isText;
         private string _contentPath;
         private bool _extractionFailed;
         private readonly object _lockObject = new();
@@ -27,7 +28,7 @@ namespace SZExtractorGUI.Viewmodels
             CharacterId = _packageInfo.GetCharacterIdFromPath(filePath);
             Type = _packageInfo.getFileType(CharacterId, contentType);
             IsMod = _packageInfo.IsMod(container);
-            
+            IsText = _packageInfo.IsText(filePath);
             // Initialize with proper character name
             UpdateCharacterName(displayLanguage);
         }
@@ -76,6 +77,12 @@ namespace SZExtractorGUI.Viewmodels
         {
             get => _container;
             set => SetProperty(ref _container, value);
+        }
+
+        public bool IsText
+        {
+            get => _isText;
+            private set => SetProperty(ref _isText, value);
         }
 
         public bool IsMod

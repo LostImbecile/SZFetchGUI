@@ -30,7 +30,7 @@ namespace SZExtractorGUI.Services.FileInfo
             if (string.IsNullOrEmpty(id))
                 return string.Empty;
 
-            if (!filePath.Contains("Localization", StringComparison.OrdinalIgnoreCase))
+            if (!IsText(filePath))
             {
                 bool isCnk = false;
 
@@ -143,5 +143,10 @@ namespace SZExtractorGUI.Services.FileInfo
 
         [GeneratedRegex(@"SSJ (\d)")]
         private static partial Regex SSJRegex();
+
+        public bool IsText(string filePath)
+        {
+            return filePath.Contains("Localization", StringComparison.OrdinalIgnoreCase);
+        }
     }
 }

@@ -81,50 +81,73 @@ namespace SZExtractorGUI.Services.FileFetch
             try
             {
                 var successCount = 0;
-                var expectedCount = 0;
+                var expectedCount = 1;
 
-                // Extract .awb file with container
-                var awbRequest = new ExtractRequest
+                if (item.IsText)
                 {
-                    ContentPath = $"{item.CharacterId}.awb",
-                    ArchiveName = item.Container
-                };
-                expectedCount++;
-
-                var awbResponse = await _extractorService.ExtractAsync(awbRequest);
-                // Check Success property instead of message
-                if (awbResponse.Success && awbResponse.FilePaths.Count != 0)
-                {
-                    successCount++;
-                }
-                else
-                {
-                    _errorHandlingService.HandleError(
-                        $"Failed to extract {item.CharacterName} (.awb)",
-                        awbResponse.Message ?? "Unknown error");
-                }
-
-                // For non-mods, also extract .uasset file without container
-                if (!item.IsMod)
-                {
-                    expectedCount++;
-                    var uassetRequest = new ExtractRequest
+                    var textRequest = new ExtractRequest
                     {
-                        ContentPath = $"{item.CharacterId}.uasset".Replace("_Cnk_00", ""),
-                        ArchiveName = null
+                        ContentPath = $"{item.CharacterId}.locres",
+                        ArchiveName = item.Container
                     };
 
-                    var uassetResponse = await _extractorService.ExtractAsync(uassetRequest);
-                    // Check Success property and file paths
-                    if (uassetResponse.Success && uassetResponse.FilePaths.Count != 0)
+                    var textResponse = await _extractorService.ExtractAsync(textRequest);
+                    // Check Success property instead of message
+                    if (textResponse.Success && textResponse.FilePaths.Count != 0)
                     {
                         successCount++;
                     }
                     else
                     {
                         _errorHandlingService.HandleError(
-                            $"Failed to extract {item.CharacterName} (.uasset)",
-                            uassetResponse.Message ?? "Unknown error");
+                            $"Failed to extract {item.CharacterName} (.txt)",
+                            textResponse.Message ?? "Unknown error");
+                    }
+                }
+                else
+                {
+                    // Extract .awb file with container
+                    var awbRequest = new ExtractRequest
+                    {
+                        ContentPath = $"{item.CharacterId}.awb",
+                        ArchiveName = item.Container
+                    };
+
+                    var awbResponse = await _extractorService.ExtractAsync(awbRequest);
+                    // Check Success property instead of message
+                    if (awbResponse.Success && awbResponse.FilePaths.Count != 0)
+                    {
+                        successCount++;
+                    }
+                    else
+                    {
+                        _errorHandlingService.HandleError(
+                            $"Failed to extract {item.CharacterName} (.awb)",
+                            awbResponse.Message ?? "Unknown error");
+                    }
+
+                    // For non-mods, also extract .uasset file without container
+                    if (!item.IsMod)
+                    {
+                        expectedCount++;
+                        var uassetRequest = new ExtractRequest
+                        {
+                            ContentPath = $"{item.CharacterId}.uasset".Replace("_Cnk_00", ""),
+                            ArchiveName = null
+                        };
+
+                        var uassetResponse = await _extractorService.ExtractAsync(uassetRequest);
+                        // Check Success property and file paths
+                        if (uassetResponse.Success && uassetResponse.FilePaths.Count != 0)
+                        {
+                            successCount++;
+                        }
+                        else
+                        {
+                            _errorHandlingService.HandleError(
+                                $"Failed to extract {item.CharacterName} (.uasset)",
+                                uassetResponse.Message ?? "Unknown error");
+                        }
                     }
                 }
 
