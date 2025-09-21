@@ -3,7 +3,7 @@ This is the tool attached on the Sparking Zero Audio Modding Tool releases ([Mod
 
 The SZ File Extractor is an alternative to Fmodel for extracting audio and locres files in particular
 from Sparking Zero, with the ability to filter and know the respective name of the character or type of
-file rather than relying on online lists.
+file rather than relying on online lists. All languages supported for character names.
 
 Works with any Sparking Zero version, and fixes the corrupted files issue Fmodel has as far as I've been told.
 
@@ -19,3 +19,6 @@ This requires my [SZ Extractor Server](https://github.com/LostImbecile/SZ_Extrac
 
 This was rushed during writing due to time constraints so if you have any questions feel free to contact me, comments are sparse
 but there's hopefully little to modify for changes you may need.
+
+For info on LocresLib see [here](https://github.com/akintos/UnrealLocres), I use it to read locres files and match their
+names with the ID of the character for all languages.
