@@ -28,7 +28,6 @@ namespace SZExtractorGUI.Services
                 Interlocked.Increment(ref _activeOperations);
                 OperationStatusChanged?.Invoke(this, true);
 
-                // Add small delay to ensure UI updates
                 await Task.Delay(50);
 
                 await operation();

@@ -74,7 +74,6 @@ namespace SZExtractorGUI.Services.Fetch
                 }
 
                 var extractResponse = await response.Content.ReadFromJsonAsync<ExtractResponse>();
-                // Ensure success is true when server returns success status
                 if (extractResponse != null)
                 {
                     extractResponse.Success = true;
@@ -127,15 +126,13 @@ namespace SZExtractorGUI.Services.Fetch
 
                 using var cts = new CancellationTokenSource(_requestTimeout);
                 
-                // Use null for PropertyNamingPolicy to preserve PascalCase
                 var requestJson = JsonSerializer.Serialize(request, new JsonSerializerOptions 
                 { 
-                    PropertyNamingPolicy = null, // Preserve original casing (PascalCase)
+                    PropertyNamingPolicy = null,
                     WriteIndented = true
                 });
                 Debug.WriteLine($"[Dump] Request JSON:\n{requestJson}");
 
-                // Create request message with preserved casing
                 var requestMessage = new HttpRequestMessage(HttpMethod.Post, "dump")
                 {
                     Content = new StringContent(requestJson, System.Text.Encoding.UTF8, "application/json")
@@ -147,7 +144,6 @@ namespace SZExtractorGUI.Services.Fetch
                     Debug.WriteLine($"  {header.Key}: {string.Join(", ", header.Value)}");
                 }
 
-                // Send request and get raw response
                 var response = await _httpClient.SendAsync(requestMessage, cts.Token);
                 var rawContent = await response.Content.ReadAsStringAsync();
                 

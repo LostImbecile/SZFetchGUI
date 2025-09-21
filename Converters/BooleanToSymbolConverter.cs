@@ -10,9 +10,9 @@ namespace SZExtractorGUI.Converters
         {
             if (value is bool boolValue)
             {
-                return boolValue ? "✓" : "❌"; // Checkmark and X symbols
+                return boolValue ? "✓" : "❌";
             }
-            return string.Empty; // Default if not a boolean
+            return string.Empty;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

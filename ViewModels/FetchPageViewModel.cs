@@ -29,7 +29,6 @@ namespace SZExtractorGUI.ViewModels
 {
     public class FetchPageViewModel : BindableBase, IDisposable
     {
-        // Initialize as true to show loading on startup
         private bool _isOperationInProgress = true;
         private ObservableCollection<ContentType> _contentTypes;
         private ContentType _selectedContentType;
@@ -55,21 +54,18 @@ namespace SZExtractorGUI.ViewModels
         private readonly Configuration _configuration;
         private readonly IServerConfigurationService _serverConfigurationService;
 
-        // Add private field to store the command
         private RelayCommand _fetchFilesCommand;
         private RelayCommand _refreshCommand;
 
-        // Add near the top with other private fields
         private readonly Dictionary<string, FetchItemViewModel> _itemCache = [];
 
-        // Update the language mapping to preserve exact case
         private readonly Dictionary<string, string> _languageNameMapping = new(StringComparer.Ordinal)
         {
             { "all", "All Languages" },
             { "en", "English" },
             { "ja", "Japanese" },
-            { "zh-Hans", "Chinese (Simplified)" },    // Preserve exact case
-            { "zh-Hant", "Chinese (Traditional)" },   // Preserve exact case
+            { "zh-Hans", "Chinese (Simplified)" },
+            { "zh-Hant", "Chinese (Traditional)" },
             { "ko", "Korean" },
             { "th", "Thai" },
             { "id", "Indonesian" },
@@ -81,7 +77,7 @@ namespace SZExtractorGUI.ViewModels
             { "de", "German" },
             { "it", "Italian" },
             { "fr", "French" },
-            { "pt-BR", "Portuguese (Brazil)" }        // Preserve exact case
+            { "pt-BR", "Portuguese (Brazil)" }
         };
         public ObservableCollection<LanguageItem> AvailableLanguages { get; } = [];
 
@@ -98,10 +94,8 @@ namespace SZExtractorGUI.ViewModels
             }
         }
 
-        // Add event for item extraction completion
         public event EventHandler<(FetchItemViewModel Item, bool Success)> ItemExtractionCompleted;
 
-        // Update constructor to initialize languages immediately
         public FetchPageViewModel(
             IContentTypeService contentTypeService,
             IFetchOperationService fetchOperationService,
@@ -112,7 +106,7 @@ namespace SZExtractorGUI.ViewModels
             IPackageInfo packageInfo,
             Settings settings,
             Configuration configuration,
-            IServerConfigurationService serverConfigurationService) // Add new parameter
+            IServerConfigurationService serverConfigurationService)
         {
             _contentTypeService = contentTypeService;
             _fetchOperationService = fetchOperationService;
@@ -122,13 +116,10 @@ namespace SZExtractorGUI.ViewModels
             _characterNameManager = characterNameManager;
             _packageInfo = packageInfo;
             _settings = settings;
-            _configuration = configuration; // Initialize configuration
-            _serverConfigurationService = serverConfigurationService; // Initialize new field
+            _configuration = configuration;
+            _serverConfigurationService = serverConfigurationService;
 
-            // Initialize languages first, before any async operations
             InitializeLanguages();
-
-            // Initialize collections
             InitializeCollections();
 
             _isRefreshing = false;
@@ -150,17 +141,14 @@ namespace SZExtractorGUI.ViewModels
             };
 
             InitializeCommands();
-
-            // Start initialization process
             _ = InitializeAsync();
         }
 
-        // Replace the existing InitializeCommands method
         private void InitializeCommands()
         {
             _fetchFilesCommand = new RelayCommand(
                 async () => await ExtractSelectedItemsAsync(),
-                () => SelectedItems?.Any() == true && !IsOperationInProgress // Remove content type dependency
+                () => SelectedItems?.Any() == true && !IsOperationInProgress
             );
 
             _refreshCommand = new RelayCommand(
@@ -169,16 +157,13 @@ namespace SZExtractorGUI.ViewModels
             );
         }
 
-        // Add property for FetchFilesCommand (if not already present)
         public ICommand FetchFilesCommand => _fetchFilesCommand;
         public ICommand RefreshCommand => _refreshCommand;
 
-        // New method to handle immediate language initialization
         private void InitializeLanguages()
         {
             Debug.WriteLine("[Languages] Initializing language collections");
 
-            // Convert all mapped languages to LanguageItems
             var languageItems = _languageNameMapping
                 .Select(kvp => new LanguageItem
                 {
@@ -188,21 +173,18 @@ namespace SZExtractorGUI.ViewModels
                 .OrderBy(item => item.Code == "all" ? 0 : 1)
                 .ThenBy(item => item.DisplayName);
 
-            // Clear and populate available languages
             AvailableLanguages.Clear();
             foreach (var item in languageItems)
             {
                 AvailableLanguages.Add(item);
             }
 
-            // Ensure settings have valid defaults
             if (string.IsNullOrEmpty(_settings.DisplayLanguage))
                 _settings.DisplayLanguage = "en";
 
             if (string.IsNullOrEmpty(_settings.TextLanguage))
                 _settings.TextLanguage = "en";
 
-            // Set initial selected items
             _selectedDisplayLanguageItem = AvailableLanguages.FirstOrDefault(x =>
                 x.Code.Equals(_settings.DisplayLanguage, StringComparison.OrdinalIgnoreCase))
                 ?? AvailableLanguages.First(x => x.Code == "en");
@@ -214,7 +196,6 @@ namespace SZExtractorGUI.ViewModels
             Debug.WriteLine($"[Languages] Initial Display Language: {_selectedDisplayLanguageItem.DisplayName}");
             Debug.WriteLine($"[Languages] Initial Text Language: {_selectedTextLanguageItem.DisplayName}");
 
-            // Notify UI of initial values
             OnPropertyChanged(nameof(AvailableLanguages));
             OnPropertyChanged(nameof(SelectedDisplayLanguageItem));
             OnPropertyChanged(nameof(SelectedTextLanguageItem));
@@ -222,7 +203,6 @@ namespace SZExtractorGUI.ViewModels
             OnPropertyChanged(nameof(TextLanguage));
         }
 
-        // Update InitializeAsync to properly handle language initialization timing
         private async Task InitializeAsync()
         {
             try
@@ -232,18 +212,15 @@ namespace SZExtractorGUI.ViewModels
                 {
                     Debug.WriteLine("[Initialize] Waiting for initialization service");
 
-                    // Wait for server initialization first
                     await _initializationService.InitializeAsync();
 
                     if (_initializationService.IsInitialized)
                     {
                         Debug.WriteLine("[Initialize] Initialization complete");
 
-                        // Only fetch after locres is loaded
                         Debug.WriteLine("[Initialize] Starting initial fetch");
                         await FetchItemsAsync();
 
-                        // Update UI after everything is loaded
                         await Application.Current.Dispatcher.InvokeAsync(() =>
                         {
                             _remoteItemsView?.Refresh();
@@ -278,7 +255,6 @@ namespace SZExtractorGUI.ViewModels
 
                 await _backgroundOps.ExecuteOperationAsync(async () =>
                 {
-                    // Call the full refresh with configure method specifically for the Refresh button
                     await ExecuteFullRefreshWithConfigureAsync();
                 });
             }
@@ -293,16 +269,13 @@ namespace SZExtractorGUI.ViewModels
             }
         }
 
-        // Add this new method to handle the complete refresh with configure sequence
         private async Task ExecuteFullRefreshWithConfigureAsync()
         {
             try
             {
                 Debug.WriteLine("[Refresh] Starting first refresh before configuration");
-                // First refresh - get the current items
                 await FetchItemsAsync();
                 
-                // Now call configure
                 Debug.WriteLine("[Refresh] Executing server configuration");
                 bool configSuccess = await _serverConfigurationService.ConfigureServerAsync(_settings);
                 
@@ -315,7 +288,6 @@ namespace SZExtractorGUI.ViewModels
                     Debug.WriteLine("[Refresh] Configuration failed or completed with warnings");
                 }
                 
-                // Second refresh - always refresh again even if configure had issues
                 Debug.WriteLine("[Refresh] Starting second refresh after configuration");
                 await FetchItemsAsync();
                 
@@ -324,12 +296,10 @@ namespace SZExtractorGUI.ViewModels
             catch (Exception ex)
             {
                 Debug.WriteLine($"[Refresh] Error during full refresh cycle: {ex.Message}");
-                // Let the outer method handle general exceptions
                 throw;
             }
         }
 
-        // New method for simple refresh without configure (for tab changes, etc.)
         private async Task ExecuteSimpleRefreshAsync()
         {
             if (SelectedContentType == null || _isRefreshing) return;
@@ -365,7 +335,7 @@ namespace SZExtractorGUI.ViewModels
             var items = await _fetchOperationService.FetchItemsAsync(
                 SelectedContentType,
                 _packageInfo,
-                _settings.DisplayLanguage);  // Always use settings version
+                _settings.DisplayLanguage);
 
             if (items != null)
             {
@@ -377,34 +347,28 @@ namespace SZExtractorGUI.ViewModels
             }
         }
 
-        // Replace the existing UpdateItemsCollectionAsync method
         public async Task UpdateItemsCollectionAsync(IEnumerable<FetchItemViewModel> items)
         {
             if (items == null) return;
 
             Debug.WriteLine($"[UpdateItems] Updating {items.Count()} items");
 
-            // Cache selected items state
             var selectedItemIds = new HashSet<string>(SelectedItems.Select(item => GetItemUniqueKey(item)));
 
-            // Clear only remote items
             RemoteItems.Clear();
 
             foreach (var item in items)
             {
                 var key = GetItemUniqueKey(item);
 
-                // Check if we already have this item in cache
                 if (_itemCache.TryGetValue(key, out var existingItem))
                 {
-                    // Update existing item's character name with current display language
                     existingItem.UpdateCharacterName(_settings.DisplayLanguage);
                     existingItem.IsSelected = selectedItemIds.Contains(key);
                     RemoteItems.Add(existingItem);
                 }
                 else
                 {
-                    // Initialize new item with current display language
                     item.UpdateCharacterName(_settings.DisplayLanguage);
                     _itemCache[key] = item;
                     item.IsSelected = selectedItemIds.Contains(key);
@@ -412,13 +376,11 @@ namespace SZExtractorGUI.ViewModels
                 }
             }
 
-            // Force UI updates
             _remoteItemsView?.Refresh();
             (_fetchFilesCommand as RelayCommand)?.RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(RemoteItems));
         }
 
-        // Replace the existing GetItemUniqueKey method
         private static string GetItemUniqueKey(FetchItemViewModel item)
         {
             return $"{item.ContentPath}|{item.Container}";
@@ -435,15 +397,13 @@ namespace SZExtractorGUI.ViewModels
                 ShowModsOnly = ShowModsOnly,
                 ShowGameFilesOnly = ShowGameFilesOnly,
                 LanguageOption = SelectedLanguage,
-                ContentType = SelectedContentType,  // Add ContentType
-                CurrentTextLanguage = _settings.TextLanguage  // Add current language
+                ContentType = SelectedContentType,
+                CurrentTextLanguage = _settings.TextLanguage
             };
 
-            // Pass the current content type to the filter service
             return _itemFilterService.FilterItem(fetchItem, parameters);
         }
 
-        // Update ExtractSelectedItemsAsync with better error handling and logging
         private async Task ExtractSelectedItemsAsync()
         {
             var selectedItems = SelectedItems.ToList();
@@ -472,7 +432,6 @@ namespace SZExtractorGUI.ViewModels
                             if (success)
                             {
                                 item.IsSelected = false;
-                                // Remove from selected items collection
                                 SelectedItems.Remove(item);
                             }
 
@@ -484,7 +443,7 @@ namespace SZExtractorGUI.ViewModels
             catch (Exception ex)
             {
                 Debug.WriteLine($"[Extract] Error during extraction: {ex.Message}");
-                throw; // Rethrow to let the UI handle the error
+                throw;
             }
             finally
             {
@@ -551,7 +510,6 @@ namespace SZExtractorGUI.ViewModels
             set => SetProperty(ref _contentTypes, value);
         }
 
-        // Replace SelectedContentType property
         public ContentType SelectedContentType
         {
             get => _selectedContentType;
@@ -559,13 +517,10 @@ namespace SZExtractorGUI.ViewModels
             {
                 if (SetProperty(ref _selectedContentType, value))
                 {
-                    // Don't clear selections when changing content type
                     if (_initialized)
                     {
-                        // Use simple refresh for content type changes (e.g., tab changes)
                         _ = ExecuteSimpleRefreshAsync();
                     }
-                    // Ensure fetch command state is updated
                     (_fetchFilesCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 }
             }
@@ -584,8 +539,6 @@ namespace SZExtractorGUI.ViewModels
             {
                 if (SetProperty(ref _selectedRemoteItem, value))
                 {
-                    // Don't modify item selection state here, let the grid handle it
-                    // This is just for tracking the currently focused item
                 }
             }
         }
@@ -643,7 +596,6 @@ namespace SZExtractorGUI.ViewModels
         {
             if (item == null) return;
 
-            // Simple synchronization - this is triggered by checkbox/selection changes
             if (isSelected && !SelectedItems.Contains(item))
             {
                 SelectedItems.Add(item);
@@ -651,7 +603,6 @@ namespace SZExtractorGUI.ViewModels
             else if (!isSelected && SelectedItems.Contains(item))
             {
                 SelectedItems.Remove(item);
-                // Also clear SelectedRemoteItem if this was the selected item
                 if (SelectedRemoteItem == item)
                 {
                     SelectedRemoteItem = null;
@@ -666,7 +617,6 @@ namespace SZExtractorGUI.ViewModels
             RemoteItems = [];
             SelectedItems = [];
 
-            // Initialize the collection view immediately
             _remoteItemsView = CollectionViewSource.GetDefaultView(RemoteItems);
             _remoteItemsView.Filter = FilterItems;
             _remoteItemsView.SortDescriptions.Add(
@@ -674,17 +624,14 @@ namespace SZExtractorGUI.ViewModels
 
             RemoteItems.CollectionChanged += Items_CollectionChanged;
 
-            // Load content types after view initialization
             ContentTypes = _contentTypeService.GetContentTypes();
 
-            // Set selected type without triggering fetch
             _selectedContentType = _contentTypeService.GetDefaultContentType();
             OnPropertyChanged(nameof(SelectedContentType));
 
             _initialized = true;
         }
 
-        // Update DisplayLanguage property to include better UI synchronization
         public string DisplayLanguage
         {
             get => GetLanguageDisplayName(_settings.DisplayLanguage);
@@ -695,7 +642,7 @@ namespace SZExtractorGUI.ViewModels
                 {
                     Debug.WriteLine($"[Language] Changing display language from {_settings.DisplayLanguage} to {languageCode}");
                     _settings.DisplayLanguage = languageCode;
-                    _configuration.SaveConfiguration(); // Save configuration
+                    _configuration.SaveConfiguration();
 
                     _ = Task.Run(async () =>
                     {
@@ -737,14 +684,12 @@ namespace SZExtractorGUI.ViewModels
                         catch (Exception ex)
                         {
                             Debug.WriteLine($"[Language] Error during language change: {ex.Message}");
-                            // Consider showing error to user here
                         }
                     });
                 }
             }
         }
 
-        // Update LoadLocresForLanguageAsync to ensure proper loading sequence
         private async Task LoadLocresForLanguageAsync(string language)
         {
             if (string.IsNullOrEmpty(language))
@@ -753,19 +698,16 @@ namespace SZExtractorGUI.ViewModels
                 return;
             }
 
-            // Quick check if already loaded before taking semaphore
             if (_characterNameManager.IsLocresLoaded(language))
             {
                 Debug.WriteLine($"[LoadLocres] Language {language} already loaded, skipping");
                 return;
             }
 
-            // Try to mark this language as loading. If false, another thread is already loading it
             if (!_languageLoadingState.TryAdd(language, true))
             {
                 Debug.WriteLine($"[LoadLocres] Language {language} is already being loaded by another thread");
 
-                // Wait for the other thread to finish loading (up to timeout)
                 var waitStart = DateTime.UtcNow;
                 while (_languageLoadingState.ContainsKey(language))
                 {
@@ -774,10 +716,9 @@ namespace SZExtractorGUI.ViewModels
                         Debug.WriteLine($"[LoadLocres] Timeout waiting for language {language} to load");
                         throw new TimeoutException($"Timeout waiting for language {language} to load");
                     }
-                    await Task.Delay(100); // Small delay to prevent tight loop
+                    await Task.Delay(100);
                 }
 
-                // Verify it was actually loaded
                 if (_characterNameManager.IsLocresLoaded(language))
                 {
                     Debug.WriteLine($"[LoadLocres] Language {language} was loaded by another thread");
@@ -795,7 +736,6 @@ namespace SZExtractorGUI.ViewModels
 
                 Debug.WriteLine($"[LoadLocres] Acquired semaphore for {language}");
 
-                // Double-check if loaded after acquiring semaphore
                 if (_characterNameManager.IsLocresLoaded(language))
                 {
                     Debug.WriteLine($"[LoadLocres] Language {language} was loaded while waiting for semaphore");
@@ -814,7 +754,6 @@ namespace SZExtractorGUI.ViewModels
                         {
                             Debug.WriteLine($"[LoadLocres] Found locres file: {languageFile}");
 
-                            // Add retry logic for robustness
                             const int maxRetries = 3;
                             for (int attempt = 1; attempt <= maxRetries; attempt++)
                             {
@@ -831,7 +770,7 @@ namespace SZExtractorGUI.ViewModels
                                     if (attempt < maxRetries)
                                     {
                                         Debug.WriteLine($"[LoadLocres] Retrying load for {language}, attempt {attempt + 1}");
-                                        await Task.Delay(100 * attempt); // Progressive delay between retries
+                                        await Task.Delay(100 * attempt);
                                     }
                                 }
                                 catch (Exception ex) when (attempt < maxRetries)
@@ -860,40 +799,34 @@ namespace SZExtractorGUI.ViewModels
                 _languageLoadSemaphore.Release();
                 Debug.WriteLine($"[LoadLocres] Released semaphore for {language}");
 
-                // Remove the loading state regardless of success/failure
                 _languageLoadingState.TryRemove(language, out _);
                 Debug.WriteLine($"[LoadLocres] Removed loading state for {language}");
             }
         }
 
-        // Update GetLanguageDisplayName to be case-sensitive
         private string GetLanguageDisplayName(string languageCode)
         {
             if (string.IsNullOrEmpty(languageCode))
-                return _languageNameMapping["en"]; // Default to English display name
+                return _languageNameMapping["en"];
 
             return _languageNameMapping.TryGetValue(languageCode, out var name)
                 ? name
-                : languageCode; // Fallback to code if no mapping exists
+                : languageCode;
         }
 
-        // Update GetLanguageCode to be case-sensitive and preserve original case
         private string GetLanguageCode(string displayName)
         {
             if (string.IsNullOrEmpty(displayName))
-                return "en"; // Default to English code
+                return "en";
 
-            // First try direct match (in case it's already a code)
             if (_languageNameMapping.ContainsKey(displayName))
                 return displayName.ToLowerInvariant();
 
-            // Then look for display name match
             return _languageNameMapping
                 .FirstOrDefault(x => x.Value.Equals(displayName, StringComparison.OrdinalIgnoreCase))
-                .Key ?? "en"; // Default to English if no match found
+                .Key ?? "en";
         }
 
-        // Update TextLanguage property to ensure it properly reflects settings
         public string TextLanguage
         {
             get => GetLanguageDisplayName(_settings.TextLanguage);
@@ -903,9 +836,8 @@ namespace SZExtractorGUI.ViewModels
                 if (_settings.TextLanguage != languageCode)
                 {
                     _settings.TextLanguage = languageCode;
-                    _configuration.SaveConfiguration(); // Save configuration
+                    _configuration.SaveConfiguration();
 
-                    // Update selected item if changed externally
                     var newItem = AvailableLanguages.FirstOrDefault(x => x.Code == languageCode);
                     if (newItem != null && _selectedTextLanguageItem != newItem)
                     {
@@ -917,11 +849,9 @@ namespace SZExtractorGUI.ViewModels
             }
         }
 
-        // Add these fields near the top of the class with other private fields
         private LanguageItem _selectedDisplayLanguageItem;
         private LanguageItem _selectedTextLanguageItem;
 
-        // Add these properties after the other public properties
         public LanguageItem SelectedDisplayLanguageItem
         {
             get => _selectedDisplayLanguageItem;
@@ -948,13 +878,11 @@ namespace SZExtractorGUI.ViewModels
             }
         }
 
-        // Add these near the top of the class
         private static readonly SemaphoreSlim _languageLoadSemaphore = new(1, 1);
         private static readonly ConcurrentDictionary<string, bool> _languageLoadingState = new();
-        private const int LANGUAGE_LOAD_TIMEOUT_MS = 30000; // 30 second timeout
+        private const int LANGUAGE_LOAD_TIMEOUT_MS = 30000;
         private readonly object _commandLock = new();
 
-        // Add this helper method for updating command states
         private void UpdateCommandStates()
         {
             lock (_commandLock)
@@ -965,7 +893,6 @@ namespace SZExtractorGUI.ViewModels
         }
     }
 
-    // Add this class for language selection
     public class LanguageItem
     {
         public string Code { get; set; }

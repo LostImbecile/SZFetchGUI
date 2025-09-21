@@ -67,7 +67,6 @@ namespace SZExtractorGUI.Services.FileFetch
             }
         }
 
-        // New method to handle single item extraction
         public async Task<bool> ExtractItemAsync(FetchItemViewModel item)
         {
             if (item == null || string.IsNullOrEmpty(item.CharacterId))
@@ -92,7 +91,6 @@ namespace SZExtractorGUI.Services.FileFetch
                     };
 
                     var textResponse = await _extractorService.ExtractAsync(textRequest);
-                    // Check Success property instead of message
                     if (textResponse.Success && textResponse.FilePaths.Count != 0)
                     {
                         successCount++;
@@ -106,7 +104,6 @@ namespace SZExtractorGUI.Services.FileFetch
                 }
                 else
                 {
-                    // Extract .awb file with container
                     var awbRequest = new ExtractRequest
                     {
                         ContentPath = $"{item.CharacterId}.awb",
@@ -114,7 +111,6 @@ namespace SZExtractorGUI.Services.FileFetch
                     };
 
                     var awbResponse = await _extractorService.ExtractAsync(awbRequest);
-                    // Check Success property instead of message
                     if (awbResponse.Success && awbResponse.FilePaths.Count != 0)
                     {
                         successCount++;
@@ -126,7 +122,6 @@ namespace SZExtractorGUI.Services.FileFetch
                             awbResponse.Message ?? "Unknown error");
                     }
 
-                    // For non-mods, also extract .uasset file without container
                     if (!item.IsMod)
                     {
                         expectedCount++;
@@ -137,7 +132,6 @@ namespace SZExtractorGUI.Services.FileFetch
                         };
 
                         var uassetResponse = await _extractorService.ExtractAsync(uassetRequest);
-                        // Check Success property and file paths
                         if (uassetResponse.Success && uassetResponse.FilePaths.Count != 0)
                         {
                             successCount++;
@@ -151,7 +145,6 @@ namespace SZExtractorGUI.Services.FileFetch
                     }
                 }
 
-                // Only return true if we got all expected files
                 return successCount == expectedCount;
             }
             catch (Exception ex)
@@ -161,7 +154,6 @@ namespace SZExtractorGUI.Services.FileFetch
             }
         }
 
-        // Update existing method to use new single item extraction
         public async Task<bool> ExtractItemsAsync(IEnumerable<FetchItemViewModel> items)
         {
             if (items == null || !items.Any())
@@ -197,17 +189,15 @@ namespace SZExtractorGUI.Services.FileFetch
                 var extractedFiles = new List<string>();
                 foreach (var (container, files) in response.Files)
                 {
-                    if (container.Contains("_P")) continue; // Skip mod containers
+                    if (container.Contains("_P")) continue;
                     Debug.WriteLine($"[Fetch] Processing container {container} with {files.Count} files");
                     foreach (var file in files)
                     {
-                        // Extract and rename maintaining original language code case
                         var languageCode = ExtractLanguageCode(file);
                         if (languageCode != null)
                         {
                             var targetDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Languages", languageCode);
 
-                            // Create language directory if it doesn't exist
                             Directory.CreateDirectory(targetDir);
 
                             var extractRequest = new ExtractRequest
@@ -241,13 +231,12 @@ namespace SZExtractorGUI.Services.FileFetch
 
         private static string ExtractLanguageCode(string path)
         {
-            // Extract language code based on path structure
             var parts = path.Split('/');
             foreach (var part in parts)
             {
                 if (LanguageCodeValidator.IsValidLanguageCode(part))
                 {
-                    return part; // Return exact case-sensitive match
+                    return part;
                 }
             }
             return null;

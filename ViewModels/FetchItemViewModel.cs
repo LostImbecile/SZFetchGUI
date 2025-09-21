@@ -29,7 +29,6 @@ namespace SZExtractorGUI.Viewmodels
             Type = _packageInfo.getFileType(CharacterId, contentType);
             IsMod = _packageInfo.IsMod(container);
             IsText = _packageInfo.IsText(filePath);
-            // Initialize with proper character name
             UpdateCharacterName(displayLanguage);
         }
 
@@ -52,13 +51,11 @@ namespace SZExtractorGUI.Viewmodels
             {
                 if (SetProperty(ref _characterName, value))
                 {
-                    // Only notify DisplayName change if it actually changed
                     OnPropertyChanged(nameof(DisplayName));
                 }
             }
         }
 
-        // DisplayName is now just a proxy to CharacterName
         public string DisplayName => CharacterName;
 
         public string CharacterId
@@ -104,10 +101,8 @@ namespace SZExtractorGUI.Viewmodels
 
             lock (_lockObject)
             {
-                // Get localized name from package info
                 CharacterName = _packageInfo.GetCharacterNameFromPath(ContentPath, displayLanguage);
                 
-                // Fallback to ID if name is empty or null
                 if (string.IsNullOrWhiteSpace(CharacterName))
                 {
                     CharacterName = CharacterId;

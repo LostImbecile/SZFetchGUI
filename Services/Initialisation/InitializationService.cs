@@ -23,7 +23,6 @@ namespace SZExtractorGUI.Services.Initialisation
         Task ShutdownAsync();
         bool IsInitialized { get; }
         event EventHandler<bool> InitializationStateChanged;
-        // Add new event for configuration completion
         event EventHandler<bool> ConfigurationCompleted;
     }
 
@@ -54,7 +53,7 @@ namespace SZExtractorGUI.Services.Initialisation
             _serverConfigurationService = serverConfigurationService;
             _errorHandlingService = errorHandlingService;
             _fetchOperationService = fetchOperationService;
-            _characterNameManager = characterNameManager; // Initialize field
+            _characterNameManager = characterNameManager;
             _settings = settings;
             Debug.WriteLine("[Init] Initialization service created");
         }
@@ -74,7 +73,6 @@ namespace SZExtractorGUI.Services.Initialisation
                     throw new Exception("Failed to start server");
                 }
 
-                // Server configuration
                 await Task.Delay(500);
                 var configured = await _serverConfigurationService.ConfigureServerAsync(_settings);
                 _serverLifecycleService.SetInitialConfigurationComplete(configured);
@@ -85,7 +83,6 @@ namespace SZExtractorGUI.Services.Initialisation
                     Debug.WriteLine("[Init] Initial configuration reported issues but continuing");
                 }
 
-                // Load locres files before completing initialization
                 await InitializeLocresAsync();
                 
                 UpdateInitializationState(true);

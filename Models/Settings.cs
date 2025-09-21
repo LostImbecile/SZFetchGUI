@@ -7,7 +7,6 @@ using System.Linq;
 
 namespace SZExtractorGUI.Models
 {
-    // Add this new class for centralized config keys
     public static class ConfigKeys
     {
         public const string GameDirectory = "GameDirectory";
@@ -18,7 +17,6 @@ namespace SZExtractorGUI.Models
         public const string DisplayLanguage = "DisplayLanguage";
         public const string TextLanguage = "TextLanguage";
 
-        // Helper method to get all config keys
         public static IEnumerable<string> GetAllKeys()
         {
             return typeof(ConfigKeys)
@@ -33,7 +31,6 @@ namespace SZExtractorGUI.Models
         private string _toolsDirectory;
         private string _outputPath;
 
-        // Update language properties to preserve case
         private string _displayLanguage = "en";
         private string _textLanguage = "en";
 
@@ -66,7 +63,6 @@ namespace SZExtractorGUI.Models
                     throw new ArgumentException("Output path cannot be null or empty");
                 }
 
-                // Get full path, handling both absolute and relative paths
                 string fullPath = Path.GetFullPath(
                     Path.IsPathRooted(value) 
                         ? value 
@@ -78,10 +74,8 @@ namespace SZExtractorGUI.Models
             }
         }
 
-        // Keep only essential server settings
         public int ServerStartupTimeoutMs { get; set; } = 10000;
 
-        // Process ID of the parent application
         public int ParentProcessId { get; } = Process.GetCurrentProcess().Id;
 
         public string ToolsDirectory
@@ -96,12 +90,10 @@ namespace SZExtractorGUI.Models
 
         public Settings()
         {
-            // Initialize with default tools directory relative to application
             ToolsDirectory = Path.GetFullPath(
                 Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Tools")
             );
 
-            // Set default output path using the new property setter
             OutputPath = "Output";
         }
 
@@ -112,13 +104,11 @@ namespace SZExtractorGUI.Models
                 throw new InvalidOperationException("Tools directory cannot be null or empty");
             }
 
-            // Ensure tools directory exists
             if (!Directory.Exists(_toolsDirectory))
             {
                 Directory.CreateDirectory(_toolsDirectory);
             }
 
-            // Get full path and verify it's within the application directory for security
             string fullPath = Path.GetFullPath(Path.Combine(_toolsDirectory, ServerExecutableName));
             if (!fullPath.StartsWith(AppDomain.CurrentDomain.BaseDirectory, StringComparison.OrdinalIgnoreCase))
             {
@@ -146,7 +136,6 @@ namespace SZExtractorGUI.Models
 
             try
             {
-                // Verify file permissions
                 using var fs = File.OpenRead(ServerExecutablePath);
                 return true;
             }

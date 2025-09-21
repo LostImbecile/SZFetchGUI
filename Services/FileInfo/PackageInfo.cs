@@ -68,7 +68,6 @@ namespace SZExtractorGUI.Services.FileInfo
                     else
                         name = name.Replace("Super Saiyan God", "SSG").Replace("Super Saiyan", "SSJ").Replace("SSG SSJ", "SSB").Replace("Ultra Instinct", "UI");
 
-                    // Add regex replacement for "SSJ [0-9]" to "SSJN"
                     name = SSJRegex().Replace(name, "SSJ$1");
 
                     if (isAlt)
@@ -117,21 +116,16 @@ namespace SZExtractorGUI.Services.FileInfo
 
         public bool IsMod(string container)
         {
-            // Check for _P which is a common mod indicator
             if (container.Contains("_p", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
 
-            // Check if it's a valid game container using regex
-            // Valid formats: pakchunkN-Windows, pakchunkNoptional-Windows, or DLC_*
             var baseGameRegex = GameContainerRegex();
             var dlcRegex = DlcContainerRegex();
 
-            // If it matches either pattern, it's a valid game container (not a mod)
             bool isValidGameContainer = baseGameRegex.IsMatch(container) || dlcRegex.IsMatch(container);
 
-            // Return true (is mod) when it's not a valid game container
             return !isValidGameContainer;
         }
 

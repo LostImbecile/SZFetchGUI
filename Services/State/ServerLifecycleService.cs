@@ -34,7 +34,6 @@ namespace SZExtractorGUI.Services.State
 
     public class ServerLifecycleService : IServerLifecycleService, IDisposable
     {
-        // Remove job object related fields
         private bool _initialConfigurationDone;
         private readonly string _serverPath;
         private readonly HttpClient _httpClient;
@@ -82,7 +81,6 @@ namespace SZExtractorGUI.Services.State
 
                 Debug.WriteLine($"[Server] Attempting to start server from: {_serverPath}");
 
-                // Check if server is already running
                 if (IsServerProcessRunning())
                 {
                     Debug.WriteLine("[Server] Found existing server process, attempting to connect first");
@@ -127,11 +125,9 @@ namespace SZExtractorGUI.Services.State
                     _serverProcess = new Process { StartInfo = startInfo };
                     _serverProcess.EnableRaisingEvents = true;
 
-                    // Enhanced process lifetime monitoring
                     _serverProcess.Disposed += ServerProcess_Disposed;
                     _serverProcess.Exited += ServerProcess_Exited;
 
-                    // Detailed output logging
                     _serverProcess.OutputDataReceived += (s, e) =>
                     {
                         if (e.Data != null)
@@ -161,10 +157,8 @@ namespace SZExtractorGUI.Services.State
 
                     UpdateState(ServerState.Starting);
 
-                    // Give the server time to initialize
                     await Task.Delay(SERVER_STARTUP_DELAY_MS);
 
-                    // Verify the process hasn't exited during startup
                     if (_serverProcess.HasExited)
                     {
                         Debug.WriteLine($"[Server] Process exited during startup with code: {_serverProcess.ExitCode}");
@@ -229,7 +223,6 @@ namespace SZExtractorGUI.Services.State
             GC.SuppressFinalize(this);
         }
 
-        // Helper method to check for existing server process
         private bool IsServerProcessRunning()
         {
             try
@@ -260,7 +253,6 @@ namespace SZExtractorGUI.Services.State
                     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                     await _httpClient.DeleteAsync($"{_settings.ServerBaseUrl}/shutdown", cts.Token);
 
-                    // Wait for process to exit naturally
                     await Task.Delay(1000);
                 }
                 catch (Exception ex)
@@ -268,7 +260,6 @@ namespace SZExtractorGUI.Services.State
                     Debug.WriteLine($"[Server] Graceful shutdown failed: {ex.Message}");
                 }
 
-                // Only force kill if we're disposing the application
                 if (_disposed && !_serverProcess.HasExited)
                 {
                     try
@@ -305,7 +296,7 @@ namespace SZExtractorGUI.Services.State
 
                 _isConnected = true;
 
-                if (!_isConnected) // State transition from disconnected to connected
+                if (!_isConnected)
                 {
                     UpdateState(ServerState.Running);
                 }
@@ -313,7 +304,7 @@ namespace SZExtractorGUI.Services.State
             }
             catch (Exception ex)
             {
-                if (_isConnected) // Only log when transitioning from connected to disconnected
+                if (_isConnected)
                 {
                     Debug.WriteLine($"[Server] Connection lost: {ex.GetType().Name} - {ex.Message}");
                     UpdateState(ServerState.Failed);
@@ -327,10 +318,8 @@ namespace SZExtractorGUI.Services.State
         {
             if (await StartServerAsync())
             {
-                // Give the server a moment to start up
                 await Task.Delay(500, _cts.Token);
 
-                // Skip configuration if this is the initial startup
                 if (!_initialConfigurationDone)
                 {
                     Debug.WriteLine("[Server] Skipping initial configuration (will be handled by InitializationService)");
@@ -339,7 +328,6 @@ namespace SZExtractorGUI.Services.State
 
                 try
                 {
-                    // Only configure on subsequent restarts
                     var configured = await _serverConfigurationService.ConfigureServerAsync(_settings);
                     Debug.WriteLine($"[Server] Subsequent configuration completed: {configured}");
                     return configured;
@@ -393,7 +381,6 @@ namespace SZExtractorGUI.Services.State
             Debug.WriteLine($"[Server] {DateTime.Now:HH:mm:ss.fff} {message}");
         }
 
-        // Add method for InitializationService to signal initial config is done
         public void SetInitialConfigurationComplete(bool success)
         {
             _initialConfigurationDone = true;
