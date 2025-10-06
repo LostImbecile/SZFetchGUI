@@ -19,7 +19,7 @@ namespace SZExtractorGUI.Services.FileInfo
                 ),
                 new ContentType(
                     name: "BGM",
-                    filter: "\\\\bgm_main.*\\.awb",
+                    filter: "\\\\(bgm_main|bgm_DLC).*\\.awb",
                     description: "Background Music Files"
                 ),
                 new ContentType(

@@ -33,9 +33,12 @@ namespace SZExtractorGUI.Services.FileInfo
             if (!IsText(filePath))
             {
                 bool isCnk = false;
+                bool isDLC = false;
 
                 if (id.Contains("_Cnk", StringComparison.OrdinalIgnoreCase))
                     isCnk = true;
+                if (id.Contains("DLC", StringComparison.OrdinalIgnoreCase))
+                    isDLC = true;
 
                 if (id.Contains("ADVIF"))
                     name = "Story & Scenes";
@@ -80,6 +83,8 @@ namespace SZExtractorGUI.Services.FileInfo
 
                 if (isCnk)
                     name += " (Secondary)";
+                if(isDLC)
+                    name += " (DLC)";
             }
             else if (!String.IsNullOrEmpty(filePath))
             {

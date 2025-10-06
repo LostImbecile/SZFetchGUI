@@ -73,6 +73,11 @@ namespace SZExtractorGUI.Services.Configuration
                         switch (key.ToLower())
                         {
                             case var _ when key.Equals(ConfigKeys.GameDirectory, StringComparison.OrdinalIgnoreCase):
+                                // DLCs are in /Content/DLC, this is just to allow them to be picked up
+                                if (value.EndsWith("\\Content\\Paks", StringComparison.OrdinalIgnoreCase)) { 
+                                    value = value[..^"\\Paks".Length];
+                                }
+
                                 Settings.GameDirectory = value;
                                 Debug.WriteLine($"[Config] Set GameDirectory = '{value}'");
                                 break;
