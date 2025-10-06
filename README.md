@@ -7,7 +7,9 @@ file rather than relying on online lists. All languages supported for character 
 
 Works with any Sparking Zero version, and fixes the corrupted files issue Fmodel has as far as I've been told.
 
-![Example Screenshot](https://i.imgur.com/JLVT0Ei.png)
+https://github.com/user-attachments/assets/cf5993fe-aaac-45de-8538-865205389bac
+
+
 
 Please view the usage guide linked earlier for details
 
