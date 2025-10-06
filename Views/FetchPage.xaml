@@ -117,9 +117,15 @@
                         Content="Show Mods Only"
                         IsChecked="{Binding ShowModsOnly}" />
                     <CheckBox
+                        Margin="0,0,10,0"
                         VerticalAlignment="Center"
                         Content="Show Game Files Only"
                         IsChecked="{Binding ShowGameFilesOnly}" />
+                    <Button
+                        Command="{Binding ExportToCsvCommand}"
+                        Content="Export to CSV"
+                        Style="{StaticResource MinimalExportButtonStyle}"
+                        ToolTip="Export current filtered list to CSV file" Margin="25,0,5,0" Width="98.3" />
                 </StackPanel>
 
             </StackPanel>

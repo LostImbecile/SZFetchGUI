@@ -24,6 +24,8 @@ using System.Collections.Concurrent;
 using SZExtractorGUI.Services.FileFetch;
 using SZExtractorGUI.Utilities;
 using SZExtractorGUI.Services.State;
+using Microsoft.Win32;
+using System.Text;
 
 namespace SZExtractorGUI.ViewModels
 {
@@ -56,6 +58,7 @@ namespace SZExtractorGUI.ViewModels
 
         private RelayCommand _fetchFilesCommand;
         private RelayCommand _refreshCommand;
+        private RelayCommand _exportToCsvCommand;
 
         private readonly Dictionary<string, FetchItemViewModel> _itemCache = [];
 
@@ -155,10 +158,16 @@ namespace SZExtractorGUI.ViewModels
                 async () => await ExecuteRefreshAsync(),
                 () => !_isRefreshing && !IsOperationInProgress && SelectedContentType != null
             );
+
+            _exportToCsvCommand = new RelayCommand(
+                () => ExportToCsv(),
+                () => RemoteItems?.Any() == true && !IsOperationInProgress
+            );
         }
 
         public ICommand FetchFilesCommand => _fetchFilesCommand;
         public ICommand RefreshCommand => _refreshCommand;
+        public ICommand ExportToCsvCommand => _exportToCsvCommand;
 
         private void InitializeLanguages()
         {
@@ -451,6 +460,82 @@ namespace SZExtractorGUI.ViewModels
             }
         }
 
+        private void ExportToCsv()
+        {
+            try
+            {
+                // Get the program's directory
+                var programDirectory = AppDomain.CurrentDomain.BaseDirectory;
+                
+                // Create filename with content type (replace spaces with underscores)
+                var contentTypeName = SelectedContentType?.Name ?? "Items";
+                var sanitizedContentType = string.Join("_", contentTypeName.Split(Path.GetInvalidFileNameChars()))
+                    .Replace(" ", "_");
+                var defaultFileName = $"SZ_{sanitizedContentType}_Export_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+                
+                var saveFileDialog = new SaveFileDialog
+                {
+                    Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+                    DefaultExt = "csv",
+                    FileName = defaultFileName,
+                    InitialDirectory = programDirectory
+                };
+
+                if (saveFileDialog.ShowDialog() == true)
+                {
+                    var itemsToExport = _remoteItemsView.Cast<FetchItemViewModel>().ToList();
+                    
+                    if (itemsToExport.Count == 0)
+                    {
+                        MessageBox.Show("No items to export.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+
+                    var csv = new StringBuilder();
+                    
+                    // Header with underscores instead of spaces
+                    csv.AppendLine("Name,ID,Type,Container,Is_Mod,Content_Path");
+
+                    // Data rows
+                    foreach (var item in itemsToExport)
+                    {
+                        csv.AppendLine($"\"{EscapeCsvField(item.CharacterName)}\"," +
+                                     $"\"{EscapeCsvField(item.CharacterId)}\"," +
+                                     $"\"{EscapeCsvField(item.Type)}\"," +
+                                     $"\"{EscapeCsvField(item.Container)}\"," +
+                                     $"\"{(item.IsMod ? "Yes" : "No")}\"," +
+                                     $"\"{EscapeCsvField(item.ContentPath)}\"");
+                    }
+
+                    File.WriteAllText(saveFileDialog.FileName, csv.ToString(), Encoding.UTF8);
+                    
+                    MessageBox.Show($"Successfully exported {itemsToExport.Count} items to:\n{saveFileDialog.FileName}", 
+                                  "Export Complete", 
+                                  MessageBoxButton.OK, 
+                                  MessageBoxImage.Information);
+                    
+                    Debug.WriteLine($"[Export] Exported {itemsToExport.Count} items to {saveFileDialog.FileName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Export] Error: {ex.Message}");
+                MessageBox.Show($"Failed to export items: {ex.Message}", 
+                              "Export Error", 
+                              MessageBoxButton.OK, 
+                              MessageBoxImage.Error);
+            }
+        }
+
+        private static string EscapeCsvField(string field)
+        {
+            if (string.IsNullOrEmpty(field))
+                return string.Empty;
+            
+            // Escape double quotes by doubling them
+            return field.Replace("\"", "\"\"");
+        }
+
         public void Dispose()
         {
 
@@ -690,7 +775,7 @@ namespace SZExtractorGUI.ViewModels
             }
         }
 
-        private async Task LoadLocresForLanguageAsync(string language)
+            private async Task LoadLocresForLanguageAsync(string language)
         {
             if (string.IsNullOrEmpty(language))
             {
@@ -889,6 +974,7 @@ namespace SZExtractorGUI.ViewModels
             {
                 (_fetchFilesCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 (_refreshCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (_exportToCsvCommand as RelayCommand)?.RaiseCanExecuteChanged();
             }
         }
     }
