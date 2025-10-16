@@ -16,20 +16,39 @@ namespace SZExtractorGUI.Services.Fetch
 {
     public class SzExtractorService : ISzExtractorService, IDisposable
     {
-        private readonly HttpClient _httpClient;
+        private HttpClient _httpClient;
         private readonly Settings _settings;
         private readonly TimeSpan _requestTimeout = TimeSpan.FromSeconds(30);
         private bool _disposed;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IServerEndpointProvider _endpointProvider;
 
         public SzExtractorService(
             IRetryService retryService,
             IHttpClientFactory httpClientFactory,
-            Settings settings)
+            Settings settings,
+            IServerEndpointProvider endpointProvider)
         {
             _settings = settings;
-            _httpClient = httpClientFactory.CreateClient();
-            _httpClient.BaseAddress = new Uri(settings.ServerBaseUrl);
+            _httpClientFactory = httpClientFactory;
+            _endpointProvider = endpointProvider;
+
+            _httpClient = _httpClientFactory.CreateClient();
+            _httpClient.BaseAddress = new Uri(_endpointProvider.BaseUrl);
             _httpClient.Timeout = _requestTimeout;
+
+            _endpointProvider.EndpointChanged += OnEndpointChanged;
+        }
+
+        private void OnEndpointChanged(string newBaseUrl)
+        {
+            // Dispose old client and create a new one pointing to the updated endpoint
+            var old = _httpClient;
+            try { old?.Dispose(); } catch { /* ignore */ }
+            _httpClient = _httpClientFactory.CreateClient();
+            _httpClient.BaseAddress = new Uri(newBaseUrl);
+            _httpClient.Timeout = _requestTimeout;
+            Debug.WriteLine($"[HTTP] Endpoint updated to: {newBaseUrl}");
         }
         public async Task<ConfigureResponse> ConfigureAsync(ConfigureRequest request)
         {
@@ -214,7 +233,8 @@ namespace SZExtractorGUI.Services.Fetch
         {
             if (!_disposed)
             {
-                _httpClient?.Dispose();
+                try { _httpClient?.Dispose(); } catch { }
+                _endpointProvider.EndpointChanged -= OnEndpointChanged;
                 _disposed = true;
             }
         }

@@ -9,6 +9,7 @@ using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using SZExtractorGUI.Services.Fetch;
+using SZExtractorGUI.Utilities;
 
 namespace SZExtractorGUI.Services.State
 {
@@ -34,6 +35,7 @@ namespace SZExtractorGUI.Services.State
 
     public class ServerLifecycleService : IServerLifecycleService, IDisposable
     {
+        private const string ExpectedServiceName = "SZ_Extractor_Server";
         private bool _initialConfigurationDone;
         private readonly string _serverPath;
         private readonly HttpClient _httpClient;
@@ -48,6 +50,7 @@ namespace SZExtractorGUI.Services.State
         private readonly IServerConfigurationService _serverConfigurationService;
         private const int SERVER_STARTUP_DELAY_MS = 2000;
         private readonly SemaphoreSlim _startupLock = new(1, 1);
+        private readonly IServerEndpointProvider _endpointProvider;
 
         public ServerState State => _state;
         public bool IsServerAvailable => _isConnected;
@@ -59,13 +62,15 @@ namespace SZExtractorGUI.Services.State
             IHttpClientFactory httpClientFactory,
             Settings settings,
             IRetryService retryService,
-            IServerConfigurationService serverConfigurationService)
+            IServerConfigurationService serverConfigurationService,
+            IServerEndpointProvider endpointProvider)
         {
             _serverPath = settings.ServerExecutablePath;
             _settings = settings;
             _httpClient = httpClientFactory.CreateClient();
             _state = settings.ValidateServerPath() ? ServerState.NotStarted : ServerState.NotFound;
             _serverConfigurationService = serverConfigurationService;
+            _endpointProvider = endpointProvider;
 
             Task.Run(MonitorServerAsync);
         }
@@ -98,6 +103,16 @@ namespace SZExtractorGUI.Services.State
                     return false;
                 }
 
+                // Ensure we have a valid, unused port or connect to an already-running server on the configured port
+                var alreadyRunning = await EnsureValidPortOrConnectAsync();
+                if (alreadyRunning)
+                {
+                    Debug.WriteLine("[Server] Reusing existing running server instance");
+                    // Verify connection and return
+                    var ok = await CheckServerStatusAsync();
+                    return ok;
+                }
+
                 try
                 {
                     var startInfo = new ProcessStartInfo
@@ -108,11 +123,13 @@ namespace SZExtractorGUI.Services.State
                         RedirectStandardError = true,
                         CreateNoWindow = true,
                         WorkingDirectory = Path.GetDirectoryName(_serverPath),
-                        Arguments = Environment.ProcessId.ToString()
+                        // Pass parent PID (existing behavior) and the chosen port so server binds correctly
+                        Arguments = $"{Environment.ProcessId} --port {_settings.ServerPort}"
                     };
 
                     Debug.WriteLine($"[Server] Starting process with parent PID: {Environment.ProcessId}");
                     Debug.WriteLine($"[Server] Working directory: {startInfo.WorkingDirectory}");
+                    Debug.WriteLine($"[Server] Using port: {_settings.ServerPort}");
 
                     if (_serverProcess != null)
                     {
@@ -157,6 +174,7 @@ namespace SZExtractorGUI.Services.State
 
                     UpdateState(ServerState.Starting);
 
+                    // Wait briefly and then poll for server identity until timeout
                     await Task.Delay(SERVER_STARTUP_DELAY_MS);
 
                     if (_serverProcess.HasExited)
@@ -168,7 +186,20 @@ namespace SZExtractorGUI.Services.State
                         return false;
                     }
 
-                    return true;
+                    var startupDeadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(_settings.ServerStartupTimeoutMs);
+                    while (DateTime.UtcNow < startupDeadline)
+                    {
+                        if (await CheckServerStatusAsync())
+                        {
+                            Debug.WriteLine("[Server] Server identity confirmed and running");
+                            return true;
+                        }
+                        await Task.Delay(300);
+                    }
+
+                    Debug.WriteLine("[Server] Startup timed out waiting for server to become available");
+                    UpdateState(ServerState.Failed);
+                    return false;
                 }
                 catch (Exception ex)
                 {
@@ -251,7 +282,8 @@ namespace SZExtractorGUI.Services.State
                 try
                 {
                     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                    await _httpClient.DeleteAsync($"{_settings.ServerBaseUrl}/shutdown", cts.Token);
+                    var shutdownUri = _endpointProvider.BuildUri("shutdown");
+                    await _httpClient.DeleteAsync(shutdownUri, cts.Token);
 
                     await Task.Delay(1000);
                 }
@@ -291,16 +323,29 @@ namespace SZExtractorGUI.Services.State
             try
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-                var response = await _httpClient.GetAsync(_settings.ServerBaseUrl, cts.Token);
-                var content = await response.Content.ReadAsStringAsync();
+                var isOurServer = await IsExpectedServerAsync(_endpointProvider.BaseUrl, cts.Token);
 
-                _isConnected = true;
-
-                if (!_isConnected)
+                if (isOurServer)
                 {
-                    UpdateState(ServerState.Running);
+                    var wasConnected = _isConnected;
+                    _isConnected = true;
+                    if (!wasConnected)
+                    {
+                        UpdateState(ServerState.Running);
+                    }
+                    return true;
                 }
-                return true;
+                else
+                {
+                    // Something else is listening or the response is unexpected
+                    if (_isConnected)
+                    {
+                        Debug.WriteLine("[Server] Unexpected service on port; marking as disconnected");
+                        UpdateState(ServerState.Failed);
+                    }
+                    _isConnected = false;
+                    return false;
+                }
             }
             catch (Exception ex)
             {
@@ -310,6 +355,71 @@ namespace SZExtractorGUI.Services.State
                     UpdateState(ServerState.Failed);
                 }
                 _isConnected = false;
+                return false;
+            }
+        }
+
+        private async Task<bool> EnsureValidPortOrConnectAsync()
+        {
+            // If something is listening on the configured port, check identity
+            using (var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(800)))
+            {
+                if (await IsExpectedServerAsync(_endpointProvider.BaseUrl, cts.Token))
+                {
+                    Debug.WriteLine("[Server] Found existing SZ Extractor server on configured port; will connect");
+                    // No need to change port; caller will attempt to connect
+                    return true;
+                }
+            }
+
+            // If no server is there or identity didn't match, ensure we can actually bind to this port using HttpListener
+            if (NetworkUtil.IsHttpPortBindable(_settings.ServerPort))
+            {
+                Debug.WriteLine($"[Server] Desired port {_settings.ServerPort} is bindable by HttpListener");
+                return false;
+            }
+
+            Debug.WriteLine($"[Server] Desired port {_settings.ServerPort} is not bindable; selecting alternative bindable port");
+            var newPort = NetworkUtil.FindBindableHttpPort();
+            Debug.WriteLine($"[Server] Selected alternate bindable port: {newPort}");
+            _endpointProvider.SetPort(newPort);
+            return false;
+        }
+
+        private async Task<bool> IsExpectedServerAsync(string baseUrl, CancellationToken ct)
+        {
+            try
+            {
+                // Try /identify first, then fall back to root
+                var identifyUri = new Uri(new Uri(baseUrl), "identify");
+                var resp = await _httpClient.GetAsync(identifyUri, ct);
+                if (!resp.IsSuccessStatusCode)
+                {
+                    // Try root
+                    resp = await _httpClient.GetAsync(baseUrl, ct);
+                }
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    return false;
+                }
+
+                var json = await resp.Content.ReadAsStringAsync(ct);
+                try
+                {
+                    var status = System.Text.Json.JsonSerializer.Deserialize<SZExtractorGUI.Models.ServerStatusResponse>(json, new System.Text.Json.JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                    return status != null && string.Equals(status.Service, ExpectedServiceName, StringComparison.OrdinalIgnoreCase);
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+            catch
+            {
                 return false;
             }
         }

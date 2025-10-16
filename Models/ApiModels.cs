@@ -87,16 +87,16 @@ namespace SZExtractorGUI.Models
 
     public class ServerStatusResponse
     {
-        [JsonPropertyName("IsAvailable")]
-        public bool IsAvailable { get; set; }
-
-        [JsonPropertyName("Message")]
-        public string Message { get; set; }
-
-        [JsonPropertyName("MountedFiles")]
-        public int? MountedFiles { get; set; }
+        [JsonPropertyName("Service")]
+        public string Service { get; set; }
 
         [JsonPropertyName("Version")]
         public string Version { get; set; }
+
+        [JsonPropertyName("Status")]
+        public string Status { get; set; }
+
+        [JsonPropertyName("Description")]
+        public string Description { get; set; }
     }
 }

@@ -16,6 +16,7 @@ namespace SZExtractorGUI.Models
         public const string OutputPath = "OutputPath";
         public const string DisplayLanguage = "DisplayLanguage";
         public const string TextLanguage = "TextLanguage";
+        public const string ServerPort = "ServerPort";
 
         public static IEnumerable<string> GetAllKeys()
         {
@@ -33,13 +34,28 @@ namespace SZExtractorGUI.Models
 
         private string _displayLanguage = "en";
         private string _textLanguage = "en";
+        private int _serverPort = 5000;
 
         public string GameDirectory { get; set; } = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\DRAGON BALL Sparking! ZERO\\SparkingZERO\\Content\\Paks";
         public string ServerExecutableName { get; set; } = "SZ_Extractor_Server.exe";
         public string ServerExecutablePath { get; private set; }
         public string EngineVersion { get; set; } = "GAME_UE5_1";
         public string AesKey { get; set; } = "0xb2407c45ea7c528738a94c0a25ea8f419de4377628eb30c0ae6a80dd9a9f3ef0";
-        public string ServerBaseUrl { get; set; } = "http://localhost:5000/";
+        
+        public int ServerPort
+        {
+            get => _serverPort;
+            set
+            {
+                if (value < 1024 || value > 65535)
+                {
+                    throw new ArgumentException("Server port must be between 1024 and 65535");
+                }
+                _serverPort = value;
+            }
+        }
+        
+        public string ServerBaseUrl => $"http://localhost:{ServerPort}/";
 
         public string DisplayLanguage
         {

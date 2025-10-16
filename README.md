@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/cf5993fe-aaac-45de-8538-865205389bac
 
 Please view the usage guide linked earlier for details
 
-This requires my [SZ Extractor Server](https://github.com/LostImbecile/SZ_Extractor_Server/releases), which is included in releases.
+This requires (v1.2) of my [SZ Extractor Server](https://github.com/LostImbecile/SZ_Extractor_Server/releases), which is included in releases.
 
 ### Note to devs
 - `Services/FileInfo/ContentTypeService.cs` contains the filters and menu item tabs, if you want to add more paths or sections it's easy to do it from there

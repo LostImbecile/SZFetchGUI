@@ -88,6 +88,7 @@ public partial class App : Application
         services.AddSingleton<IApplicationEvents, ApplicationEvents>();
         services.AddSingleton<IErrorHandlingService, ErrorHandlingService>();
         services.AddSingleton<IHttpClientFactory, HttpClientFactory>();
+        services.AddSingleton<IServerEndpointProvider, ServerEndpointProvider>();
         
         // Register Service Layer - No Circular Dependencies
         services.AddSingleton<ISzExtractorService, SzExtractorService>();

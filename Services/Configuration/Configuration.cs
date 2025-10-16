@@ -105,6 +105,17 @@ namespace SZExtractorGUI.Services.Configuration
                                 Settings.TextLanguage = value;
                                 Debug.WriteLine($"[Config] Set TextLanguage = '{value}'");
                                 break;
+                            case var _ when key.Equals(ConfigKeys.ServerPort, StringComparison.OrdinalIgnoreCase):
+                                if (int.TryParse(value, out int port))
+                                {
+                                    Settings.ServerPort = port;
+                                    Debug.WriteLine($"[Config] Set ServerPort = {port}");
+                                }
+                                else
+                                {
+                                    Debug.WriteLine($"[Config] Invalid ServerPort value: {value}, using default");
+                                }
+                                break;
                             default:
                                 Debug.WriteLine($"[Config] Unknown key: {key}");
                                 break;
@@ -147,7 +158,8 @@ namespace SZExtractorGUI.Services.Configuration
                     $"{ConfigKeys.AesKey}=\"{Settings.AesKey}\"",
                     $"{ConfigKeys.OutputPath}=\"{outputDir}\"",
                     $"{ConfigKeys.DisplayLanguage}=\"{Settings.DisplayLanguage}\"",
-                    $"{ConfigKeys.TextLanguage}=\"{Settings.TextLanguage}\""
+                    $"{ConfigKeys.TextLanguage}=\"{Settings.TextLanguage}\"",
+                    $"{ConfigKeys.ServerPort}={Settings.ServerPort}"
                 };
 
                 Debug.WriteLine("[Config] Writing default configuration file");
@@ -229,7 +241,8 @@ namespace SZExtractorGUI.Services.Configuration
                     { ConfigKeys.AesKey, Settings.AesKey },
                     { ConfigKeys.OutputPath, relativeOutputPath },
                     { ConfigKeys.DisplayLanguage, Settings.DisplayLanguage },
-                    { ConfigKeys.TextLanguage, Settings.TextLanguage }
+                    { ConfigKeys.TextLanguage, Settings.TextLanguage },
+                    { ConfigKeys.ServerPort, Settings.ServerPort.ToString() }
                 };
 
                 foreach (var key in updatedConfig.Keys)
